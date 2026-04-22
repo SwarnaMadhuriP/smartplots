@@ -48,10 +48,9 @@ cd smartplots
 
 2. Set up environment variables
 
-cp .env.example .env  
-
+cp .env.example .env
 Update .env:
-   paste your API Key
+Paste your API Key
 
 3. Start the database
 
@@ -63,7 +62,7 @@ uv venv
 source .venv/bin/activate  
 uv pip install fastapi uvicorn sqlalchemy 'psycopg[binary]' python-dotenv  
 
-5. Run backend server
+6. Run backend server
 
 cd backend  
 uvicorn app.main:app --reload  
