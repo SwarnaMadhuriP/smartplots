@@ -1,0 +1,32 @@
+# Node / Next.js
+node_modules/
+.next/
+out/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# Docker / DB
+*.db
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Python cache folders
+.pytest_cache/
+.mypy_cache/
+
+# Environment files
+.env
