@@ -1,0 +1,13 @@
+{
+  "name": "smartplots",
+  "private": true,
+  "scripts": {
+    "format": "npm --prefix frontend run -s format",
+    "format:check": "npm --prefix frontend run -s format:check",
+    "format:py": "uvx ruff format backend",
+    "format:py:check": "uvx ruff format --check backend",
+    "format:all": "npm run -s format && npm run -s format:py",
+    "format:all:check": "npm run -s format:check && npm run -s format:py:check"
+  }
+}
+
