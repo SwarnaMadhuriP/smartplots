@@ -22,11 +22,11 @@ Users can search for plots, explore detailed property insights, and receive AI-d
 Frontend: Next.js, TypeScript, Tailwind CSS  
 Backend: FastAPI (Python)  
 Database: PostgreSQL + pgvector  
-AI: OpenAI / Anthropic APIs  
+AI: Anthropic API
 Infrastructure: Docker  
 
 ## Architecture
-
+```text
 Next.js (Frontend)
         ↓
 FastAPI (Backend APIs + AI logic)
@@ -34,6 +34,7 @@ FastAPI (Backend APIs + AI logic)
 PostgreSQL (Structured Data)
         ↓
 pgvector (Semantic Search / RAG)
+```
 
 ## Getting Started
 
