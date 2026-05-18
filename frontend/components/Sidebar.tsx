@@ -9,7 +9,7 @@ const navItems = [
     active: true,
   },
   { label: 'Map Explorer', icon: Map, href: '#' },
-  { label: 'AI Insights', icon: Sparkles, href: '#ai-insights' },
+  { label: 'AI Insights', icon: Sparkles, href: '/insights' },
   { label: 'Watchlist', icon: Heart, href: '/watchlist' },
   { label: 'Comparisons', icon: Scale, href: '#' },
   { label: 'Saved Searches', icon: Bookmark, href: '#' },
