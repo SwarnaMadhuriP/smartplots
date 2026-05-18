@@ -10,6 +10,8 @@ import { Plot } from '@/data/mockPlots';
 export default function Home() {
   const [plots, setPlots] = useState<Plot[]>([]);
   const [selectedPlotId, setSelectedPlotId] = useState<number | null>(null);
+  const [watchlist, setWatchlist] = useState<number[]>([]);
+  const [watchlistLoaded, setWatchlistLoaded] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -22,8 +24,8 @@ export default function Home() {
       setError('');
 
       const url = searchQuery
-        ? `http://localhost:8000/plots?search=${encodeURIComponent(searchQuery)}`
-        : 'http://localhost:8000/plots';
+        ? `${process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL}/plots?search=${encodeURIComponent(searchQuery)}`
+        : `${process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL}/plots`;
 
       const response = await fetch(url);
 
@@ -48,8 +50,36 @@ export default function Home() {
     fetchPlots();
   }, []);
 
+  useEffect(() => {
+    const saved = localStorage.getItem('watchlist');
+
+    if (saved) {
+      try {
+        setWatchlist(JSON.parse(saved));
+      } catch {
+        localStorage.removeItem('watchlist');
+      }
+    }
+
+    setWatchlistLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!watchlistLoaded) return;
+
+    localStorage.setItem('watchlist', JSON.stringify(watchlist));
+  }, [watchlist, watchlistLoaded]);
+
   const selectedPlot =
     plots.find((plot) => plot.id === selectedPlotId) ?? plots[0];
+
+  function toggleWatchlist(plotId: number) {
+    setWatchlist((prev) =>
+      prev.includes(plotId)
+        ? prev.filter((id) => id !== plotId)
+        : [...prev, plotId],
+    );
+  }
 
   return (
     <main className="flex h-screen overflow-hidden bg-[#F3ECE5] text-slate-900">
@@ -87,6 +117,8 @@ export default function Home() {
           {plots.map((plot) => (
             <PlotCard
               key={plot.id}
+              isSaved={watchlist.includes(plot.id)}
+              onToggleWatchlist={() => toggleWatchlist(plot.id)}
               plot={{
                 ...plot,
                 aiReasons: aiReasons[plot.id],

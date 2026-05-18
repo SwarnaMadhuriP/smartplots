@@ -1,12 +1,18 @@
 import { Home, Map, Sparkles, Heart, Scale, Bookmark } from 'lucide-react';
+import Link from 'next/link';
 
 const navItems = [
-  { label: 'Discover Plots', icon: Home, active: true },
-  { label: 'Map Explorer', icon: Map },
-  { label: 'AI Insights', icon: Sparkles },
-  { label: 'Watchlist', icon: Heart },
-  { label: 'Comparisons', icon: Scale },
-  { label: 'Saved Searches', icon: Bookmark },
+  {
+    label: 'Discover Plots',
+    icon: Home,
+    href: `/plots`,
+    active: true,
+  },
+  { label: 'Map Explorer', icon: Map, href: '#' },
+  { label: 'AI Insights', icon: Sparkles, href: '#ai-insights' },
+  { label: 'Watchlist', icon: Heart, href: '/watchlist' },
+  { label: 'Comparisons', icon: Scale, href: '#' },
+  { label: 'Saved Searches', icon: Bookmark, href: '#' },
 ];
 
 export default function Sidebar() {
@@ -27,8 +33,9 @@ export default function Sidebar() {
           const Icon = item.icon;
 
           return (
-            <button
+            <Link
               key={item.label}
+              href={item.href}
               className={`flex w-full items-center gap-4 rounded-2xl px-5 py-4 text-left text-sm font-medium transition ${
                 item.active
                   ? 'bg-[#C7745A] text-white shadow-lg shadow-[#E7D3CC]'
@@ -37,7 +44,7 @@ export default function Sidebar() {
             >
               <Icon size={20} />
               {item.label}
-            </button>
+            </Link>
           );
         })}
       </nav>

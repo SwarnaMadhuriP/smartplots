@@ -44,7 +44,7 @@ export default function RightPanel({ plot, setAiReasons }: Props) {
       setAnalysis(null);
 
       const response = await fetch(
-        `http://localhost:8000/plots/${plot.id}/analyze`,
+        `${process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL}/plots/${plot.id}/analyze`,
         {
           method: 'POST',
           headers: {
@@ -83,7 +83,7 @@ export default function RightPanel({ plot, setAiReasons }: Props) {
       setAnswer('');
 
       const response = await fetch(
-        `http://localhost:8000/plots/${plot.id}/analyze`,
+        `${process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL}/plots/${plot.id}/analyze`,
         {
           method: 'POST',
           headers: {
@@ -211,7 +211,10 @@ export default function RightPanel({ plot, setAiReasons }: Props) {
         </button>
 
         {analysis && (
-          <div className="mt-6 space-y-5 rounded-3xl border border-[#E7D3CC] bg-[#FAF5F2] p-6">
+          <section
+            id="ai-insights"
+            className="mt-6 space-y-5 rounded-3xl border border-[#E7D3CC] bg-[#FAF5F2] p-6"
+          >
             <h4 className="text-lg font-bold text-slate-900">
               AI Full Analysis
             </h4>
@@ -284,7 +287,7 @@ export default function RightPanel({ plot, setAiReasons }: Props) {
                 ))}
               </ul>
             </div>
-          </div>
+          </section>
         )}
 
         <div className="mt-6 rounded-3xl border border-[#E7D3CC] bg-white p-6">

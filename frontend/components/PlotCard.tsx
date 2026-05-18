@@ -5,13 +5,23 @@ import { Plot } from '@/data/mockPlots';
 type Props = {
   plot: Plot;
   selected: boolean;
+  isSaved: boolean;
+  onToggleWatchlist: () => void;
   onSelect: () => void;
 };
 
-export default function PlotCard({ plot, selected, onSelect }: Props) {
+export default function PlotCard({
+  plot,
+  selected,
+  isSaved,
+  onToggleWatchlist,
+  onSelect,
+}: Props) {
   return (
-    <button
+    <div
       onClick={onSelect}
+      role="button"
+      tabIndex={0}
       className={`grid w-full grid-cols-[36%_1fr] overflow-hidden rounded-3xl text-left transition hover:-translate-y-1 hover:shadow-xl ${
         selected
           ? 'border-2 border-[#EADBD4] bg-white shadow-xl shadow-[#EFE3DD]'
@@ -84,9 +94,22 @@ export default function PlotCard({ plot, selected, onSelect }: Props) {
             View details
           </span>
 
-          <Bookmark size={20} className="text-[#B0897A]" />
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleWatchlist();
+            }}
+            className="rounded-full p-2 transition hover:bg-[#F3E6E1]"
+          >
+            <Bookmark
+              size={20}
+              className={
+                isSaved ? 'fill-[#B8644C] text-[#B8644C]' : 'text-[#B0897A]'
+              }
+            />
+          </button>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
