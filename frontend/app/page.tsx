@@ -6,12 +6,17 @@ import SearchHero from '@/components/SearchHero';
 import PlotCard from '@/components/PlotCard';
 import RightPanel from '@/components/RightPanel';
 import { Plot } from '@/data/mockPlots';
+import { SavedSearch } from '@/types/savedSearch';
+import { useSearchParams } from 'next/navigation';
 
 export default function Home() {
   const [plots, setPlots] = useState<Plot[]>([]);
   const [selectedPlotId, setSelectedPlotId] = useState<number | null>(null);
   const [watchlist, setWatchlist] = useState<number[]>([]);
   const [watchlistLoaded, setWatchlistLoaded] = useState(false);
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchParams = useSearchParams();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -47,12 +52,18 @@ export default function Home() {
   }
 
   useEffect(() => {
-    fetchPlots();
-  }, []);
+    const searchFromUrl = searchParams.get('search') ?? '';
+
+    setSearchQuery(searchFromUrl);
+    fetchPlots(searchFromUrl);
+  }, [searchParams]);
 
   useEffect(() => {
     const saved = localStorage.getItem('watchlist');
-
+    const stored = localStorage.getItem('savedSearches');
+    if (stored) {
+      setSavedSearches(JSON.parse(stored));
+    }
     if (saved) {
       try {
         setWatchlist(JSON.parse(saved));
@@ -81,12 +92,50 @@ export default function Home() {
     );
   }
 
+  const handleSaveSearch = (query: string) => {
+    if (!query.trim()) return;
+
+    const alreadyExists = savedSearches.some(
+      (search) => search.query.toLowerCase() === query.toLowerCase(),
+    );
+
+    if (alreadyExists) return;
+
+    const newSearch: SavedSearch = {
+      id: Date.now().toString(),
+      label: query,
+      query,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updated = [newSearch, ...savedSearches];
+
+    setSavedSearches(updated);
+    localStorage.setItem('savedSearches', JSON.stringify(updated));
+  };
+
+  const handleDeleteSavedSearch = (id: string) => {
+    const updated = savedSearches.filter((search) => search.id !== id);
+
+    setSavedSearches(updated);
+    localStorage.setItem('savedSearches', JSON.stringify(updated));
+  };
+
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    await fetchPlots(query);
+  };
+
   return (
     <main className="flex h-screen overflow-hidden bg-[#F3ECE5] text-slate-900">
       <Sidebar />
 
       <section className="flex-1 overflow-y-auto px-10 py-10">
-        <SearchHero onSearch={fetchPlots} />
+        <SearchHero
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          onSearch={handleSearch}
+        />
 
         <div className="mt-10 flex items-center justify-between">
           <p className="font-semibold text-slate-900">
@@ -95,10 +144,19 @@ export default function Home() {
               : `${plots.length} plots match your preferences`}
           </p>
 
-          <p className="text-sm text-slate-500">
-            Sort by:{' '}
-            <span className="font-semibold text-slate-900">Relevance</span>
-          </p>
+          <div className="flex items-center gap-4">
+            <p className="text-sm text-slate-500">
+              Sort by:{' '}
+              <span className="font-semibold text-slate-900">Relevance</span>
+            </p>
+
+            <button
+              onClick={() => handleSaveSearch(searchQuery)}
+              className="rounded-full border border-[#E7D3CC] bg-white px-4 py-2 text-sm font-medium text-[#C7745A] shadow-sm transition hover:bg-[#F3E6E1]"
+            >
+              Save Search
+            </button>
+          </div>
         </div>
 
         {error && (

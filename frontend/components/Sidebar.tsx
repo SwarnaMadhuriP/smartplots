@@ -12,7 +12,7 @@ const navItems = [
   { label: 'AI Insights', icon: Sparkles, href: '/insights' },
   { label: 'Watchlist', icon: Heart, href: '/watchlist' },
   { label: 'Comparisons', icon: Scale, href: '#' },
-  { label: 'Saved Searches', icon: Bookmark, href: '#' },
+  { label: 'Saved Searches', icon: Bookmark, href: '/savedSearches' },
 ];
 
 export default function Sidebar() {

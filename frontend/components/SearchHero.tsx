@@ -4,10 +4,16 @@ import { useState } from 'react';
 import { Search, Sparkles, Plus } from 'lucide-react';
 
 type Props = {
+  searchQuery: string;
+  setSearchQuery: (value: string) => void;
   onSearch: (query: string) => void;
 };
 
-export default function SearchHero({ onSearch }: Props) {
+export default function SearchHero({
+  searchQuery,
+  setSearchQuery,
+  onSearch,
+}: Props) {
   const [query, setQuery] = useState('');
 
   function handleSearch() {
@@ -20,8 +26,8 @@ export default function SearchHero({ onSearch }: Props) {
         <Sparkles className="text-[#C7745A]" size={22} />
 
         <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               handleSearch();
@@ -45,9 +51,8 @@ export default function SearchHero({ onSearch }: Props) {
             <button
               key={chip}
               onClick={() => {
-                const newQuery = chip;
-                setQuery(newQuery);
-                onSearch(newQuery);
+                setSearchQuery(chip);
+                onSearch(chip);
               }}
               className="rounded-full border border-[#E7D3CC] bg-white px-5 py-2 text-sm text-slate-700 shadow-sm transition hover:bg-[#F3E6E1]"
             >
