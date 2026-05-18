@@ -8,6 +8,8 @@ type Props = {
   isSaved: boolean;
   onToggleWatchlist: () => void;
   onSelect: () => void;
+  isCompared?: boolean;
+  onToggleCompare?: () => void;
 };
 
 export default function PlotCard({
@@ -16,6 +18,8 @@ export default function PlotCard({
   isSaved,
   onToggleWatchlist,
   onSelect,
+  isCompared = false,
+  onToggleCompare,
 }: Props) {
   return (
     <div
@@ -89,8 +93,8 @@ export default function PlotCard({
           </div>
         </div>
 
-        <div className="mt-5 flex items-center justify-between">
-          <span className="rounded-2xl bg-[#F3E6E1] px-4 py-2 text-sm font-semibold text-[#B8644C] transition hover:bg-[#EADBD4]">
+        <div className="mt-5 flex items-center gap-3">
+          <span className="mr-auto rounded-2xl bg-[#F3E6E1] px-4 py-2 text-sm font-semibold text-[#B8644C] transition hover:bg-[#EADBD4]">
             View details
           </span>
 
@@ -99,7 +103,7 @@ export default function PlotCard({
               e.stopPropagation();
               onToggleWatchlist();
             }}
-            className="rounded-full p-2 transition hover:bg-[#F3E6E1]"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E7D3CC] bg-white transition hover:bg-[#F3E6E1]"
           >
             <Bookmark
               size={20}
@@ -107,6 +111,20 @@ export default function PlotCard({
                 isSaved ? 'fill-[#B8644C] text-[#B8644C]' : 'text-[#B0897A]'
               }
             />
+          </button>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleCompare?.();
+            }}
+            className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+              isCompared
+                ? 'border-[#C7745A] bg-[#F3E6E1] text-[#C7745A]'
+                : 'border-[#E7D3CC] bg-white text-slate-600 hover:bg-[#F3E6E1]'
+            }`}
+          >
+            {isCompared ? 'Added to Compare' : 'Compare'}
           </button>
         </div>
       </div>

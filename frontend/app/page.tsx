@@ -22,6 +22,7 @@ export default function Home() {
   const [error, setError] = useState('');
 
   const [aiReasons, setAiReasons] = useState<Record<number, string[]>>({});
+  const [comparisonPlotIds, setComparisonPlotIds] = useState<number[]>([]);
 
   async function fetchPlots(searchQuery = '') {
     try {
@@ -61,6 +62,8 @@ export default function Home() {
   useEffect(() => {
     const saved = localStorage.getItem('watchlist');
     const stored = localStorage.getItem('savedSearches');
+    const storedComparisonIds = localStorage.getItem('comparisonPlotIds');
+
     if (stored) {
       setSavedSearches(JSON.parse(stored));
     }
@@ -70,6 +73,9 @@ export default function Home() {
       } catch {
         localStorage.removeItem('watchlist');
       }
+    }
+    if (storedComparisonIds) {
+      setComparisonPlotIds(JSON.parse(storedComparisonIds));
     }
 
     setWatchlistLoaded(true);
@@ -126,6 +132,18 @@ export default function Home() {
     await fetchPlots(query);
   };
 
+  const toggleCompare = (plotId: number) => {
+    setComparisonPlotIds((prev) => {
+      const updated = prev.includes(plotId)
+        ? prev.filter((id) => id !== plotId)
+        : [...prev, plotId].slice(0, 3);
+
+      localStorage.setItem('comparisonPlotIds', JSON.stringify(updated));
+
+      return updated;
+    });
+  };
+
   return (
     <main className="flex h-screen overflow-hidden bg-[#F3ECE5] text-slate-900">
       <Sidebar />
@@ -176,7 +194,9 @@ export default function Home() {
             <PlotCard
               key={plot.id}
               isSaved={watchlist.includes(plot.id)}
+              isCompared={comparisonPlotIds.includes(plot.id)}
               onToggleWatchlist={() => toggleWatchlist(plot.id)}
+              onToggleCompare={() => toggleCompare(plot.id)}
               plot={{
                 ...plot,
                 aiReasons: aiReasons[plot.id],

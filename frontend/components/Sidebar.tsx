@@ -11,7 +11,7 @@ const navItems = [
   { label: 'Map Explorer', icon: Map, href: '#' },
   { label: 'AI Insights', icon: Sparkles, href: '/insights' },
   { label: 'Watchlist', icon: Heart, href: '/watchlist' },
-  { label: 'Comparisons', icon: Scale, href: '#' },
+  { label: 'Comparisons', icon: Scale, href: '/comparisons' },
   { label: 'Saved Searches', icon: Bookmark, href: '/savedSearches' },
 ];
 
