@@ -8,7 +8,7 @@ const navItems = [
     href: `/plots`,
     active: true,
   },
-  { label: 'Map Explorer', icon: Map, href: '#' },
+  { label: 'Map Explorer', icon: Map, href: '/map' },
   { label: 'AI Insights', icon: Sparkles, href: '/insights' },
   { label: 'Watchlist', icon: Heart, href: '/watchlist' },
   { label: 'Comparisons', icon: Scale, href: '/comparisons' },

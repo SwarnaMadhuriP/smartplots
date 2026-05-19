@@ -15,4 +15,6 @@ export type Plot = {
   reasons: string[];
   aiReasons?: string[];
   highlights: string[];
+  latitude: number;
+  longitude: number;
 };
