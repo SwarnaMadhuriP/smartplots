@@ -158,6 +158,8 @@ def get_plots(
                 "description": plot.description,
                 "image": primary_image or "/placeholder-plot.jpg",
                 "location": f"{plot.city}, {plot.state}",
+                "latitude": plot.latitude,
+                "longitude": plot.longitude,
                 "price": f"${int(plot.price):,}",
                 "acres": f"{plot.area_acres} Acres",
                 "zone": plot.zoning_type or "General",

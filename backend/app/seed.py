@@ -1,5 +1,6 @@
 from .database import SessionLocal
 from .models import Plot, PlotImage
+from sqlalchemy import text
 
 db = SessionLocal()
 
@@ -24,6 +25,8 @@ plots = [
         area_acres=0.75,
         city="Austin",
         state="TX",
+        latitude=30.2672,
+        longitude=-97.7431,
         zoning_type="residential",
         road_access=True,
         water_access=True,
@@ -39,6 +42,8 @@ plots = [
         area_acres=1.2,
         city="Austin",
         state="TX",
+        latitude=30.3935,
+        longitude=-97.9111,
         zoning_type="residential",
         road_access=True,
         water_access=True,
@@ -54,6 +59,8 @@ plots = [
         area_acres=0.5,
         city="Dallas",
         state="TX",
+        latitude=32.7767,
+        longitude=-96.7970,
         zoning_type="commercial",
         road_access=True,
         water_access=True,
@@ -69,6 +76,8 @@ plots = [
         area_acres=3.5,
         city="Waco",
         state="TX",
+        latitude=31.5493,
+        longitude=-97.1467,
         zoning_type="agricultural",
         road_access=True,
         water_access=False,
@@ -84,6 +93,8 @@ plots = [
         area_acres=0.9,
         city="Houston",
         state="TX",
+        latitude=29.7604,
+        longitude=-95.3698,
         zoning_type="residential",
         road_access=True,
         water_access=True,
@@ -99,6 +110,8 @@ plots = [
         area_acres=1.0,
         city="San Antonio",
         state="TX",
+        latitude=29.4241,
+        longitude=-98.4936,
         zoning_type="commercial",
         road_access=True,
         water_access=True,
@@ -114,6 +127,8 @@ plots = [
         area_acres=0.6,
         city="Waco",
         state="TX",
+        latitude=31.5000,
+        longitude=-97.2000,
         zoning_type="residential",
         road_access=False,
         water_access=False,
@@ -129,6 +144,8 @@ plots = [
         area_acres=2.5,
         city="Austin",
         state="TX",
+        latitude=30.3072,
+        longitude=-97.9000,
         zoning_type="residential",
         road_access=True,
         water_access=True,
@@ -138,12 +155,16 @@ plots = [
         risk_notes="High initial investment",
     ),
 ]
-if db.query(Plot).count() == 0:
-    db.add_all(plots)
-    db.commit()
 
-# Clear images before re-adding (prevents duplicates)
 db.query(PlotImage).delete()
+db.query(Plot).delete()
+db.commit()
+
+db.execute(text("ALTER SEQUENCE plots_id_seq RESTART WITH 1"))
+db.execute(text("ALTER SEQUENCE plot_images_id_seq RESTART WITH 1"))
+db.commit()
+
+db.add_all(plots)
 db.commit()
 
 images = [
@@ -199,7 +220,4 @@ images = [
 
 db.add_all(images)
 db.commit()
-
-# db.add(plot)
-# db.commit()
 db.close()
