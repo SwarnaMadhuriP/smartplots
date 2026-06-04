@@ -1,57 +1,62 @@
+from datetime import datetime
+from typing import Optional
+
 from sqlalchemy import (
-    Column,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
     Integer,
     String,
-    Float,
-    Boolean,
     Text,
-    ForeignKey,
-    DateTime,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
+
 from .database import Base
 
 
 class Plot(Base):
     __tablename__ = "plots"
 
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, nullable=False)
-    description = Column(Text)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
 
-    price = Column(Float, nullable=False)
-    area_acres = Column(Float, nullable=False)
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+    area_acres: Mapped[float] = mapped_column(Float, nullable=False)
 
-    city = Column(String, nullable=False)
-    state = Column(String, nullable=False)
-    zip_code = Column(String)
+    city: Mapped[str] = mapped_column(String, nullable=False)
+    state: Mapped[str] = mapped_column(String, nullable=False)
+    zip_code: Mapped[Optional[str]] = mapped_column(String)
 
-    latitude = Column(Float)
-    longitude = Column(Float)
+    latitude: Mapped[Optional[float]] = mapped_column(Float)
+    longitude: Mapped[Optional[float]] = mapped_column(Float)
 
-    zoning_type = Column(String)
-    listing_type = Column(String, default="sale")
-    status = Column(String, default="available")
+    zoning_type: Mapped[Optional[str]] = mapped_column(String)
+    listing_type: Mapped[Optional[str]] = mapped_column(String, default="sale")
+    status: Mapped[Optional[str]] = mapped_column(String, default="available")
 
-    road_access = Column(Boolean, default=False)
-    water_access = Column(Boolean, default=False)
-    electricity = Column(Boolean, default=False)
-    sewer = Column(Boolean, default=False)
+    road_access: Mapped[bool] = mapped_column(Boolean, default=False)
+    water_access: Mapped[bool] = mapped_column(Boolean, default=False)
+    electricity: Mapped[bool] = mapped_column(Boolean, default=False)
+    sewer: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    nearby_landmarks = Column(Text)
-    ideal_for = Column(Text)
-    risk_notes = Column(Text)
+    nearby_landmarks: Mapped[Optional[str]] = mapped_column(Text)
+    ideal_for: Mapped[Optional[str]] = mapped_column(Text)
+    risk_notes: Mapped[Optional[str]] = mapped_column(Text)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    images = relationship(
+    images: Mapped[list["PlotImage"]] = relationship(
         "PlotImage", back_populates="plot", cascade="all, delete-orphan"
     )
-    insight = relationship(
+    insight: Mapped[Optional["PlotInsight"]] = relationship(
         "PlotInsight",
         back_populates="plot",
         uselist=False,
@@ -62,32 +67,38 @@ class Plot(Base):
 class PlotImage(Base):
     __tablename__ = "plot_images"
 
-    id = Column(Integer, primary_key=True, index=True)
-    plot_id = Column(Integer, ForeignKey("plots.id"), nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    plot_id: Mapped[int] = mapped_column(Integer, ForeignKey("plots.id"), nullable=False)
 
-    image_url = Column(Text, nullable=False)
-    alt_text = Column(String)
-    is_primary = Column(Boolean, default=False)
+    image_url: Mapped[str] = mapped_column(Text, nullable=False)
+    alt_text: Mapped[Optional[str]] = mapped_column(String)
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
-    plot = relationship("Plot", back_populates="images")
+    plot: Mapped["Plot"] = relationship("Plot", back_populates="images")
 
 
 class PlotInsight(Base):
     __tablename__ = "plot_insights"
 
-    id = Column(Integer, primary_key=True, index=True)
-    plot_id = Column(Integer, ForeignKey("plots.id"), nullable=False, unique=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    plot_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("plots.id"), nullable=False, unique=True
+    )
 
-    investment_score = Column(Integer)
-    growth_potential = Column(Text)
-    risk_level = Column(String)
-    summary = Column(Text)
+    investment_score: Mapped[Optional[int]] = mapped_column(Integer)
+    growth_potential: Mapped[Optional[str]] = mapped_column(Text)
+    risk_level: Mapped[Optional[str]] = mapped_column(String)
+    summary: Mapped[Optional[str]] = mapped_column(Text)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(
+    created_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    plot = relationship("Plot", back_populates="insight")
+    plot: Mapped["Plot"] = relationship("Plot", back_populates="insight")

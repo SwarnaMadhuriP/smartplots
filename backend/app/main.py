@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+
+from graphs.smartplots_graph import smartplots_graph
 from .database import engine, Base, get_db
 from .models import Plot
 from sqlalchemy.orm import Session
@@ -217,7 +219,7 @@ def analyze_plot(plot_id: int, request: AnalyzeRequest, db: Session = Depends(ge
         raise HTTPException(status_code=404, detail="Plot not found")
 
     question = request.question or "Analyze this plot for investment potential."
-    price_per_acre = (plot.price / plot.area_acres) if plot.area_acres else None
+    price_per_acre = plot.price / plot.area_acres if plot.area_acres > 0 else None
 
     prompt = ANALYZE_PROMPT.format(
         question=question,
@@ -269,4 +271,25 @@ def analyze_plot(plot_id: int, request: AnalyzeRequest, db: Session = Depends(ge
         "reasons": data.get("reasons", []),
         "pros": data.get("pros", []),
         "cons": data.get("cons", []),
+    }
+
+class SmartSearchRequest(BaseModel):
+    query: str
+
+@app.post("/ai/search")
+def ai_search(request: SmartSearchRequest):
+    result = smartplots_graph.invoke(
+        {
+            "query": request.query,
+            "filters": {},
+            "plots": [],
+            "ranked_plots": [],
+            "response": "",
+        }
+    )
+
+    return {
+        "response": result["response"],
+        "plots": result["ranked_plots"],
+        "filters": result["filters"],
     }
