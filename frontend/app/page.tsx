@@ -23,11 +23,13 @@ export default function Home() {
 
   const [aiReasons, setAiReasons] = useState<Record<number, string[]>>({});
   const [comparisonPlotIds, setComparisonPlotIds] = useState<number[]>([]);
+  const [aiResponse, setAiResponse] = useState<string>('');
 
   async function fetchPlots(searchQuery = '') {
     try {
       setLoading(true);
       setError('');
+      setAiResponse('');
 
       const url = searchQuery
         ? `${process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL}/plots?search=${encodeURIComponent(searchQuery)}`
@@ -47,6 +49,41 @@ export default function Home() {
       console.error('Error fetching plots:', error);
 
       setError('Could not load plots from the database.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function fetchAIPlots(searchQuery: string) {
+    try {
+      setLoading(true);
+      setError('');
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL}/ai/search`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: searchQuery,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error('AI search failed');
+      }
+
+      const data = await response.json();
+
+      setPlots(data.plots);
+      setAiResponse(data.response);
+      setSelectedPlotId(data.plots[0]?.id ?? null);
+    } catch (error) {
+      console.error('Error fetching AI plots:', error);
+      setError('Could not run AI search.');
     } finally {
       setLoading(false);
     }
@@ -129,7 +166,13 @@ export default function Home() {
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
-    await fetchPlots(query);
+
+    if (query.trim()) {
+      await fetchAIPlots(query);
+    } else {
+      setAiResponse('');
+      await fetchPlots();
+    }
   };
 
   const toggleCompare = (plotId: number) => {
@@ -186,6 +229,12 @@ export default function Home() {
         {!loading && !error && plots.length === 0 && (
           <div className="mt-6 rounded-2xl bg-white p-8 text-slate-600 shadow-sm">
             No plots found in the database.
+          </div>
+        )}
+
+        {aiResponse && (
+          <div className="mt-6 rounded-2xl border border-[#E7D3CC] bg-white p-5 text-sm font-medium text-slate-700 shadow-sm">
+            {aiResponse}
           </div>
         )}
 

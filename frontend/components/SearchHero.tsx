@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { Search, Sparkles, Plus } from 'lucide-react';
 
 type Props = {
@@ -14,10 +13,8 @@ export default function SearchHero({
   setSearchQuery,
   onSearch,
 }: Props) {
-  const [query, setQuery] = useState('');
-
   function handleSearch() {
-    onSearch(query);
+    onSearch(searchQuery);
   }
 
   return (
@@ -68,7 +65,7 @@ export default function SearchHero({
 
         <button
           onClick={() => {
-            setQuery('');
+            setSearchQuery('');
             onSearch('');
           }}
           className="text-sm text-slate-400 transition hover:text-slate-600"
