@@ -10,6 +10,7 @@ type Props = {
   onSelect: () => void;
   isCompared?: boolean;
   onToggleCompare?: () => void;
+  isBestMatch?: boolean;
 };
 
 export default function PlotCard({
@@ -20,6 +21,7 @@ export default function PlotCard({
   onSelect,
   isCompared = false,
   onToggleCompare,
+  isBestMatch = false,
 }: Props) {
   return (
     <div
@@ -39,11 +41,11 @@ export default function PlotCard({
           fill
           className="object-cover object-center"
         />
-
-        <div className="absolute left-4 top-4 rounded-full bg-[#B8644C] px-4 py-2 text-xs font-semibold text-white shadow">
-          ⭐ Best Match
-        </div>
-
+        {isBestMatch && (
+          <div className="absolute left-4 top-4 rounded-full bg-[#B8644C] px-4 py-2 text-xs font-semibold text-white shadow">
+            ⭐ Best Match
+          </div>
+        )}
         <div className="absolute bottom-4 right-4 rounded-full bg-black/60 px-4 py-2 text-xs font-semibold text-white">
           {plot.acres}
         </div>

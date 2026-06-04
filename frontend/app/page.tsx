@@ -239,7 +239,7 @@ export default function Home() {
         )}
 
         <div className="mt-6 space-y-5">
-          {plots.map((plot) => (
+          {plots.map((plot, index) => (
             <PlotCard
               key={plot.id}
               isSaved={watchlist.includes(plot.id)}
@@ -252,6 +252,7 @@ export default function Home() {
               }}
               selected={plot.id === selectedPlotId}
               onSelect={() => setSelectedPlotId(plot.id)}
+              isBestMatch={index === 0}
             />
           ))}
         </div>
