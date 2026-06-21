@@ -1,16 +1,40 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from graphs.smartplots_graph import smartplots_graph
 from .database import engine, Base, get_db
 from .models import Plot
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import List, Literal
 from app.prompts import ANALYZE_PROMPT
-import anthropic, os, json, re
+import os, json, re, uuid
 from sqlalchemy import or_
 
-anthropic_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+# Google GenAI client helper
+def get_genai_client():
+    from google import genai
+
+    use_vertex = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "True") == "True"
+    # Fallback to API key if no GCP auth is found
+    if use_vertex:
+        try:
+            import google.auth
+
+            google.auth.default()
+        except Exception:
+            os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
+            use_vertex = False
+
+    if use_vertex:
+        return genai.Client(vertexai=True, location="global")
+    else:
+        # Fallback to GEMINI_API_KEY if GOOGLE_API_KEY is not set
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+        if not os.environ.get("GOOGLE_API_KEY") and gemini_key is not None:
+            os.environ["GOOGLE_API_KEY"] = gemini_key
+        return genai.Client(vertexai=False)
+
 
 app = FastAPI(title="SmartPlots API")
 
@@ -24,12 +48,10 @@ app.add_middleware(
 
 Base.metadata.create_all(bind=engine)
 
-#fetch all plots 
+
+# fetch all plots
 @app.get("/plots")
-def get_plots(
-    search: str | None = Query(default=None),
-    db: Session = Depends(get_db)
-):
+def get_plots(search: str | None = Query(default=None), db: Session = Depends(get_db)):
     query = db.query(Plot)
 
     if search:
@@ -104,8 +126,7 @@ def get_plots(
         keywords = [
             word
             for word in search_lower.split()
-            if word not in filler_words
-            and not word.replace("k", "").isdigit()
+            if word not in filler_words and not word.replace("k", "").isdigit()
         ]
 
         for word in keywords:
@@ -211,6 +232,17 @@ def get_plot(plot_id: int, db: Session = Depends(get_db)):
 class AnalyzeRequest(BaseModel):
     question: str | None = None
 
+
+class AnalysisSchema(BaseModel):
+    investment_score: int = Field(..., description="Investment score between 0 and 10")
+    risk_level: Literal["Low", "Medium", "High"]
+    growth_potential: Literal["Low", "Medium", "High"]
+    summary: str
+    reasons: List[str]
+    pros: List[str]
+    cons: List[str]
+
+
 @app.post("/plots/{plot_id}/analyze")
 def analyze_plot(plot_id: int, request: AnalyzeRequest, db: Session = Depends(get_db)):
     plot = db.query(Plot).filter(Plot.id == plot_id).first()
@@ -239,26 +271,24 @@ def analyze_plot(plot_id: int, request: AnalyzeRequest, db: Session = Depends(ge
     )
 
     try:
-        response = anthropic_client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=800,
-            messages=[{"role": "user", "content": prompt}],
+        from google.genai import types
+
+        genai_client = get_genai_client()
+
+        response = genai_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=AnalysisSchema,
+                temperature=0.2,
+            ),
         )
 
-        ai_text = "".join(
-            block.text for block in response.content if block.type == "text"
-        ).strip()
+        if response.text is None:
+            raise ValueError("Response text is empty")
+        data = json.loads(response.text)
 
-        match = re.search(r"\{.*\}", ai_text, re.DOTALL)
-        json_text = match.group(0) if match else ai_text
-
-        data = json.loads(json_text)
-
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=500,
-            detail="AI returned invalid JSON. Try again.",
-        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -273,23 +303,46 @@ def analyze_plot(plot_id: int, request: AnalyzeRequest, db: Session = Depends(ge
         "cons": data.get("cons", []),
     }
 
+
 class SmartSearchRequest(BaseModel):
     query: str
 
+
 @app.post("/ai/search")
-def ai_search(request: SmartSearchRequest):
-    result = smartplots_graph.invoke(
-        {
-            "query": request.query,
-            "filters": {},
-            "plots": [],
-            "ranked_plots": [],
-            "response": "",
-        }
+async def ai_search(request: SmartSearchRequest):
+    from app.agent import root_agent
+    from google.adk.runners import Runner
+    from google.adk.sessions import InMemorySessionService
+    from google.genai import types as adk_types
+
+    session_id = str(uuid.uuid4())
+    session_service = InMemorySessionService()
+    await session_service.create_session(
+        app_name="app", user_id="user", session_id=session_id
     )
+    runner = Runner(agent=root_agent, app_name="app", session_service=session_service)
+
+    response_text = ""
+    async for event in runner.run_async(
+        user_id="user",
+        session_id=session_id,
+        new_message=adk_types.Content(
+            role="user", parts=[adk_types.Part.from_text(text=request.query)]
+        ),
+    ):
+        if event.is_final_response() and event.content and event.content.parts:
+            response_text = event.content.parts[0].text or ""
+
+    session = await session_service.get_session(
+        app_name="app", user_id="user", session_id=session_id
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    ranked_plots = session.state.get("ranked_plots", [])
+    filters = session.state.get("filters", {})
 
     return {
-        "response": result["response"],
-        "plots": result["ranked_plots"],
-        "filters": result["filters"],
+        "response": response_text,
+        "plots": ranked_plots,
+        "filters": filters,
     }

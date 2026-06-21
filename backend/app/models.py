@@ -68,7 +68,9 @@ class PlotImage(Base):
     __tablename__ = "plot_images"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    plot_id: Mapped[int] = mapped_column(Integer, ForeignKey("plots.id"), nullable=False)
+    plot_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("plots.id"), nullable=False
+    )
 
     image_url: Mapped[str] = mapped_column(Text, nullable=False)
     alt_text: Mapped[Optional[str]] = mapped_column(String)

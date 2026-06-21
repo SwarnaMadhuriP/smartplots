@@ -7,6 +7,8 @@ requires-python = ">=3.12"
 dependencies = [
     "anthropic>=0.105.2",
     "fastapi>=0.136.3",
+    "google-adk>=2.3.0",
+    "google-genai>=2.9.0",
     "langchain-anthropic>=1.4.4",
     "langgraph>=1.2.4",
     "psycopg>=3.3.4",
