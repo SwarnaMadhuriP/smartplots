@@ -1,6 +1,7 @@
 from .database import SessionLocal
-from .models import Plot, PlotImage
+from .models import Plot, PlotImage, Document, DocumentChunk
 from sqlalchemy import text
+from .ingest import ingest_document
 
 db = SessionLocal()
 
@@ -157,11 +158,15 @@ plots = [
 ]
 
 db.query(PlotImage).delete()
+db.query(DocumentChunk).delete()
+db.query(Document).delete()
 db.query(Plot).delete()
 db.commit()
 
 db.execute(text("ALTER SEQUENCE plots_id_seq RESTART WITH 1"))
 db.execute(text("ALTER SEQUENCE plot_images_id_seq RESTART WITH 1"))
+db.execute(text("ALTER SEQUENCE documents_id_seq RESTART WITH 1"))
+db.execute(text("ALTER SEQUENCE document_chunks_id_seq RESTART WITH 1"))
 db.commit()
 
 db.add_all(plots)
@@ -220,4 +225,43 @@ images = [
 
 db.add_all(images)
 db.commit()
+
+# Ingest sample synthetic documents for RAG vector search
+docs_to_ingest = [
+    {
+        "file_path": "uploads/documents/brochures/green_valley_brochure.txt",
+        "plot_id": 1,
+        "document_type": "brochure",
+    },
+    {
+        "file_path": "uploads/documents/zoning_docs/lakeside_zoning_notes.txt",
+        "plot_id": 2,
+        "document_type": "zoning_doc",
+    },
+    {
+        "file_path": "uploads/documents/utility_reports/downtown_utility_report.txt",
+        "plot_id": 3,
+        "document_type": "utility_report",
+    },
+    {
+        "file_path": "uploads/documents/county_records/farmland_flood_note.txt",
+        "plot_id": 4,
+        "document_type": "county_record",
+    },
+    {
+        "file_path": "uploads/documents/hoa_docs/oak_ridge_hoa_rules.txt",
+        "plot_id": 5,
+        "document_type": "hoa_doc",
+    },
+]
+
+print("Ingesting sample documents...")
+for doc in docs_to_ingest:
+    ingest_document(
+        db=db,
+        file_path=doc["file_path"],
+        plot_id=doc["plot_id"],
+        document_type=doc["document_type"],
+    )
+
 db.close()

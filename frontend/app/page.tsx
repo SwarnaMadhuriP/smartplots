@@ -89,11 +89,35 @@ export default function Home() {
     }
   }
 
+  // Simple query: 1-2 plain words, no numbers or filter keywords.
+  // These are fast DB lookups — no need to burn AI quota on "dallas".
+  function isSimpleQuery(query: string): boolean {
+    const lower = query.trim().toLowerCase();
+    const words = lower.split(/\s+/);
+    const hasNumbers = /\d/.test(lower);
+    const filterKeywords = [
+      'under', 'over', 'above', 'below', 'less', 'more',
+      'acres', 'budget', 'near', 'with', 'without', 'cheap',
+      'affordable', 'farmland', 'commercial', 'residential',
+    ];
+    const hasFilterKeyword = filterKeywords.some((kw) => lower.includes(kw));
+    return words.length <= 2 && !hasNumbers && !hasFilterKeyword;
+  }
+
   useEffect(() => {
     const searchFromUrl = searchParams.get('search') ?? '';
 
     setSearchQuery(searchFromUrl);
-    fetchPlots(searchFromUrl);
+    // Use same routing logic for URL-based searches for consistency
+    if (searchFromUrl) {
+      if (isSimpleQuery(searchFromUrl)) {
+        fetchPlots(searchFromUrl);
+      } else {
+        fetchAIPlots(searchFromUrl);
+      }
+    } else {
+      fetchPlots();
+    }
   }, [searchParams]);
 
   useEffect(() => {
@@ -167,11 +191,16 @@ export default function Home() {
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
 
-    if (query.trim()) {
-      await fetchAIPlots(query);
-    } else {
+    if (!query.trim()) {
       setAiResponse('');
       await fetchPlots();
+    } else if (isSimpleQuery(query)) {
+      // Short city/keyword search — hit DB directly, no AI needed
+      setAiResponse('');
+      await fetchPlots(query);
+    } else {
+      // Natural language with filters/numbers — use AI pipeline
+      await fetchAIPlots(query);
     }
   };
 

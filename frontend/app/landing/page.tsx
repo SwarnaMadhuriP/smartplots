@@ -114,50 +114,136 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <section className="mt-16 grid gap-8 pb-20 md:grid-cols-3">
-          <div className="rounded-[2rem] border border-[#E7D3CC] bg-white p-8 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#F8E9E2] text-[#C7745A]">
-              <Search size={24} />
+        <section className="mt-24 pb-20">
+          <h2 className="text-center text-4xl font-extrabold tracking-tight text-slate-950">
+            How It Works: Agentic Workflow
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-lg text-slate-500">
+            SmartPlots orchestrates a team of specialized AI agents to automate
+            land due diligence in seconds.
+          </p>
+
+          <div className="mx-auto mt-16 max-w-4xl rounded-[2.5rem] border border-[#E7D3CC] bg-white p-10 shadow-lg shadow-[#E7D3CC]/30">
+            <div className="flex flex-col items-center">
+              {/* User Query Node */}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-6 py-4 font-semibold text-slate-700 shadow-sm transition hover:scale-105">
+                💬 User Query
+              </div>
+
+              {/* Connector Arrow */}
+              <div className="h-10 w-0.5 bg-[#C7745A]"></div>
+
+              {/* Planner Agent Node */}
+              <div className="rounded-2xl border border-[#C7745A] bg-[#FDF9F6] px-8 py-5 text-center shadow-md transition hover:scale-105">
+                <span className="block text-xs font-bold uppercase tracking-wider text-[#C7745A]">
+                  Orchestrator
+                </span>
+                <span className="text-xl font-extrabold text-slate-900">
+                  Planner Agent
+                </span>
+              </div>
+
+              {/* Branching Lines and Sub-Agents */}
+              <div className="w-full">
+                {/* Horizontal Bar */}
+                <div className="flex justify-center">
+                  <div className="h-0.5 w-[80%] bg-[#C7745A]"></div>
+                </div>
+
+                {/* Vertical Drops */}
+                <div className="mx-auto flex w-[80%] justify-between">
+                  <div className="h-8 w-0.5 bg-[#C7745A]"></div>
+                  <div className="h-8 w-0.5 bg-[#C7745A]"></div>
+                  <div className="h-8 w-0.5 bg-[#C7745A]"></div>
+                  <div className="h-8 w-0.5 bg-[#C7745A]"></div>
+                  <div className="h-8 w-0.5 bg-[#C7745A]"></div>
+                </div>
+
+                {/* Agent Cards */}
+                <div className="grid grid-cols-5 gap-3 text-center">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                    <span className="text-2xl">🔍</span>
+                    <h4 className="mt-2 font-bold text-slate-900">
+                      Search Agent
+                    </h4>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Extracts filters & retrieves plots
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                    <span className="text-2xl">💵</span>
+                    <h4 className="mt-2 font-bold text-slate-900">
+                      Investment Agent
+                    </h4>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Calculates scores & projections
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                    <span className="text-2xl">⚠️</span>
+                    <h4 className="mt-2 font-bold text-slate-900">
+                      Risk Agent
+                    </h4>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Evaluates site-specific risks
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                    <span className="text-2xl">📍</span>
+                    <h4 className="mt-2 font-bold text-slate-900">
+                      Location Agent
+                    </h4>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Analyzes regional growth & access
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                    <span className="text-2xl">📄</span>
+                    <h4 className="mt-2 font-bold text-slate-900">
+                      Doc Intel Agent
+                    </h4>
+                    <p className="mt-1 text-xs text-slate-400">
+                      RAG similarity search on pgvector
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Vertical Drops to Recommendation */}
+              <div className="w-full">
+                <div className="mx-auto flex w-[80%] justify-between">
+                  <div className="h-8 w-0.5 bg-[#C7745A]"></div>
+                  <div className="h-8 w-0.5 bg-[#C7745A]"></div>
+                  <div className="h-8 w-0.5 bg-[#C7745A]"></div>
+                  <div className="h-8 w-0.5 bg-[#C7745A]"></div>
+                  <div className="h-8 w-0.5 bg-[#C7745A]"></div>
+                </div>
+
+                <div className="flex justify-center">
+                  <div className="h-0.5 w-[80%] bg-[#C7745A]"></div>
+                </div>
+              </div>
+
+              <div className="h-10 w-0.5 bg-[#C7745A]"></div>
+
+              {/* Recommendation Agent Node */}
+              <div className="rounded-2xl border border-[#C7745A] bg-[#FDF9F6] px-8 py-5 text-center shadow-md transition hover:scale-105">
+                <span className="block text-xs font-bold uppercase tracking-wider text-[#C7745A]">
+                  Evaluator
+                </span>
+                <span className="text-xl font-extrabold text-slate-900">
+                  Recommendation Agent
+                </span>
+              </div>
+
+              {/* Connector Arrow */}
+              <div className="h-10 w-0.5 bg-[#C7745A]"></div>
+
+              {/* SmartPlots Response Node */}
+              <div className="rounded-2xl bg-[#C7745A] px-6 py-4 font-semibold text-white shadow-md transition hover:scale-105">
+                ✨ SmartPlots Response
+              </div>
             </div>
-
-            <h3 className="mt-6 text-2xl font-bold text-slate-900">
-              Natural Language Search
-            </h3>
-
-            <p className="mt-4 text-lg leading-relaxed text-slate-500">
-              Search for land the way you think, using budget, location, zoning,
-              and investment intent.
-            </p>
-          </div>
-
-          <div className="rounded-[2rem] border border-[#E7D3CC] bg-white p-8 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#F8E9E2] text-[#C7745A]">
-              <Map size={24} />
-            </div>
-
-            <h3 className="mt-6 text-2xl font-bold text-slate-900">
-              Map Explorer
-            </h3>
-
-            <p className="mt-4 text-lg leading-relaxed text-slate-500">
-              Explore plot locations visually with an interactive geospatial map
-              experience.
-            </p>
-          </div>
-
-          <div className="rounded-[2rem] border border-[#E7D3CC] bg-white p-8 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#F8E9E2] text-[#C7745A]">
-              <Scale size={24} />
-            </div>
-
-            <h3 className="mt-6 text-2xl font-bold text-slate-900">
-              Smart Comparisons
-            </h3>
-
-            <p className="mt-4 text-lg leading-relaxed text-slate-500">
-              Compare plots side by side across price, acreage, utilities,
-              zoning, and risk.
-            </p>
           </div>
         </section>
       </section>

@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, Sparkles, Plus } from 'lucide-react';
+import { Search, Sparkles } from 'lucide-react';
 
 type Props = {
   searchQuery: string;
@@ -39,38 +39,6 @@ export default function SearchHero({
           className="flex h-12 w-12 items-center justify-center rounded-full bg-[#C7745A] text-white shadow-lg shadow-[#E7D3CC] transition hover:bg-[#B8644C]"
         >
           <Search size={22} />
-        </button>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        {['Austin', 'Under 100k', 'Commercial', 'Residential', 'Farmland'].map(
-          (chip) => (
-            <button
-              key={chip}
-              onClick={() => {
-                setSearchQuery(chip);
-                onSearch(chip);
-              }}
-              className="rounded-full border border-[#E7D3CC] bg-white px-5 py-2 text-sm text-slate-700 shadow-sm transition hover:bg-[#F3E6E1]"
-            >
-              {chip}
-            </button>
-          ),
-        )}
-
-        <button className="flex items-center gap-2 rounded-full border border-[#E7D3CC] bg-white px-5 py-2 text-sm text-slate-700 shadow-sm transition hover:bg-[#F3E6E1]">
-          <Plus size={16} />
-          Add preference
-        </button>
-
-        <button
-          onClick={() => {
-            setSearchQuery('');
-            onSearch('');
-          }}
-          className="text-sm text-slate-400 transition hover:text-slate-600"
-        >
-          Clear all
         </button>
       </div>
     </section>

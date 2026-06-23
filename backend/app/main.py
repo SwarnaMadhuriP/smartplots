@@ -2,18 +2,30 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import engine, Base, get_db
-from .models import Plot
+from .models import Plot, apply_plot_search_filters
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import List, Literal
 from app.prompts import ANALYZE_PROMPT
-import os, json, re, uuid
-from sqlalchemy import or_
+from google import genai
+from dotenv import load_dotenv
+import os
+import json
+import uuid
+from app.portfolio_agents import (
+    run_comparison_analysis,
+    run_market_insights,
+    run_catalog_advice,
+)
+from app.agent import root_agent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types as adk_types
 
 
 # Google GenAI client helper
 def get_genai_client():
-    from google import genai
+    load_dotenv()
 
     use_vertex = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "True") == "True"
     # Fallback to API key if no GCP auth is found
@@ -55,152 +67,44 @@ def get_plots(search: str | None = Query(default=None), db: Session = Depends(ge
     query = db.query(Plot)
 
     if search:
-        search_lower = search.lower().strip()
-
-        # Example: "between 30k and 50k"
-        between_match = re.search(
-            r"between\s+(\d+)\s*(k)?\s+and\s+(\d+)\s*(k)?",
-            search_lower,
-        )
-
-        if between_match:
-            min_price = int(between_match.group(1))
-            max_price = int(between_match.group(3))
-
-            if between_match.group(2) == "k":
-                min_price *= 1000
-
-            if between_match.group(4) == "k":
-                max_price *= 1000
-
-            query = query.filter(Plot.price >= min_price, Plot.price <= max_price)
-            search_lower = search_lower.replace(between_match.group(0), "")
-
-        # Example: "under 50k", "below 50k", "less than 50k"
-        max_match = re.search(
-            r"(under|below|less than)\s+(\d+)\s*(k)?",
-            search_lower,
-        )
-
-        if max_match:
-            max_price = int(max_match.group(2))
-
-            if max_match.group(3) == "k":
-                max_price *= 1000
-
-            query = query.filter(Plot.price <= max_price)
-            search_lower = search_lower.replace(max_match.group(0), "")
-
-        # Example: "above 30k", "over 30k", "greater than 30k"
-        min_match = re.search(
-            r"(above|over|greater than|more than)\s+(\d+)\s*(k)?",
-            search_lower,
-        )
-
-        if min_match:
-            min_price = int(min_match.group(2))
-
-            if min_match.group(3) == "k":
-                min_price *= 1000
-
-            query = query.filter(Plot.price >= min_price)
-            search_lower = search_lower.replace(min_match.group(0), "")
-
-        filler_words = {
-            "land",
-            "plot",
-            "plots",
-            "for",
-            "in",
-            "near",
-            "at",
-            "show",
-            "me",
-            "find",
-            "looking",
-            "want",
-            "with",
-            "than",
-        }
-
-        keywords = [
-            word
-            for word in search_lower.split()
-            if word not in filler_words and not word.replace("k", "").isdigit()
-        ]
-
-        for word in keywords:
-            query = query.filter(
-                or_(
-                    Plot.city.ilike(f"%{word}%"),
-                    Plot.state.ilike(f"%{word}%"),
-                    Plot.title.ilike(f"%{word}%"),
-                    Plot.zoning_type.ilike(f"%{word}%"),
-                    Plot.ideal_for.ilike(f"%{word}%"),
-                )
-            )
+        query = apply_plot_search_filters(query, search)
 
     plots = query.all()
+    return [plot.to_json_dict() for plot in plots]
 
-    result = []
 
-    for plot in plots:
-        primary_image = None
+@app.get("/plots/insights")
+def get_market_insights(db: Session = Depends(get_db)):
+    plots = db.query(Plot).all()
+    if not plots:
+        return {
+            "market_overview": "No plots available in the catalog yet.",
+            "top_picks": [],
+            "critical_risk_alerts": [],
+            "development_readiness_notes": "N/A",
+        }
+    try:
+        return run_market_insights(plots)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-        if plot.images:
-            primary = next(
-                (img for img in plot.images if img.is_primary),
-                plot.images[0],
-            )
-            primary_image = primary.image_url
 
-        reasons = []
+class AdviseRequest(BaseModel):
+    question: str
 
-        if plot.road_access:
-            reasons.append("Road access is available")
 
-        if plot.water_access:
-            reasons.append("Water access is available")
+class AdviseResponse(BaseModel):
+    answer: str
 
-        if plot.electricity:
-            reasons.append("Electricity connection is available")
 
-        if plot.zoning_type:
-            reasons.append(f"Zoned for {plot.zoning_type.lower()} use")
-
-        if plot.ideal_for:
-            reasons.append(f"Suitable for {plot.ideal_for}")
-
-        if not reasons:
-            reasons.append("Matches basic land search criteria")
-
-        result.append(
-            {
-                "id": plot.id,
-                "title": plot.title,
-                "description": plot.description,
-                "image": primary_image or "/placeholder-plot.jpg",
-                "location": f"{plot.city}, {plot.state}",
-                "latitude": plot.latitude,
-                "longitude": plot.longitude,
-                "price": f"${int(plot.price):,}",
-                "acres": f"{plot.area_acres} Acres",
-                "zone": plot.zoning_type or "General",
-                "matchScore": plot.insight.investment_score if plot.insight else 7,
-                "appreciation": plot.insight.growth_potential
-                if plot.insight
-                else "Moderate",
-                "rentalDemand": "High",
-                "liquidity": "Good",
-                "riskLevel": plot.insight.risk_level if plot.insight else "Medium",
-                "reasons": reasons[:3],
-                "highlights": [item.strip() for item in plot.ideal_for.split(",")]
-                if plot.ideal_for
-                else ["Suitable for residential or investment use"],
-            }
-        )
-
-    return result
+@app.post("/plots/advise")
+def advise_on_plots(request: AdviseRequest, db: Session = Depends(get_db)):
+    plots = db.query(Plot).all()
+    try:
+        answer = run_catalog_advice(plots, request.question)
+        return {"answer": answer}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/plots/{plot_id}")
@@ -310,11 +214,6 @@ class SmartSearchRequest(BaseModel):
 
 @app.post("/ai/search")
 async def ai_search(request: SmartSearchRequest):
-    from app.agent import root_agent
-    from google.adk.runners import Runner
-    from google.adk.sessions import InMemorySessionService
-    from google.genai import types as adk_types
-
     session_id = str(uuid.uuid4())
     session_service = InMemorySessionService()
     await session_service.create_session(
@@ -323,15 +222,21 @@ async def ai_search(request: SmartSearchRequest):
     runner = Runner(agent=root_agent, app_name="app", session_service=session_service)
 
     response_text = ""
-    async for event in runner.run_async(
-        user_id="user",
-        session_id=session_id,
-        new_message=adk_types.Content(
-            role="user", parts=[adk_types.Part.from_text(text=request.query)]
-        ),
-    ):
-        if event.is_final_response() and event.content and event.content.parts:
-            response_text = event.content.parts[0].text or ""
+    try:
+        async for event in runner.run_async(
+            user_id="user",
+            session_id=session_id,
+            new_message=adk_types.Content(
+                role="user", parts=[adk_types.Part.from_text(text=request.query)]
+            ),
+        ):
+            if event.is_final_response() and event.content and event.content.parts:
+                response_text = event.content.parts[0].text or ""
+    except Exception as e:
+        print(f"Error during agent pipeline execution: {e}")
+        response_text = (
+            "Rate Limiting Exceeded - Please try again in 20-30 seconds"
+        )
 
     session = await session_service.get_session(
         app_name="app", user_id="user", session_id=session_id
@@ -346,3 +251,19 @@ async def ai_search(request: SmartSearchRequest):
         "plots": ranked_plots,
         "filters": filters,
     }
+
+
+class CompareRequest(BaseModel):
+    plot_ids: list[int]
+    goal: str | None = None
+
+
+@app.post("/plots/compare")
+def compare_plots(request: CompareRequest, db: Session = Depends(get_db)):
+    plots = db.query(Plot).filter(Plot.id.in_(request.plot_ids)).all()
+    if not plots:
+        raise HTTPException(status_code=400, detail="No plots found to compare.")
+    try:
+        return run_comparison_analysis(plots, request.goal)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
