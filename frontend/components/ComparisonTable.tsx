@@ -34,7 +34,7 @@ export default function ComparisonTable({ plots, profiles }: Props) {
         <table className="w-full min-w-[900px] border-separate border-spacing-0 text-left">
           <thead>
             <tr>
-              <th className="w-48 rounded-tl-2xl bg-[#FBF7F4] p-4 text-sm font-semibold text-slate-500">
+              <th className="w-48 rounded-tl-2xl bg-[#FBF7F4] p-4 text-sm font-semibold text-slate-600 align-bottom">
                 Feature
               </th>
               {plots.map((plot) => {
@@ -42,16 +42,20 @@ export default function ComparisonTable({ plots, profiles }: Props) {
                 return (
                   <th
                     key={plot.id}
-                    className="bg-[#FBF7F4] p-4 text-sm font-semibold text-slate-900 align-top"
+                    className="bg-white p-4 text-sm font-semibold text-slate-900 align-bottom"
                   >
-                    {profile?.award_label && (
-                      <div className="mb-2">
-                        <span className="inline-block rounded-full bg-[#F3E6E1] px-2.5 py-1 text-xs font-semibold text-[#B8644C] border border-[#E7D3CC] shadow-sm whitespace-nowrap">
-                          🏆 {profile.award_label}
-                        </span>
-                      </div>
-                    )}
-                    <div>{plot.title}</div>
+                    <div className="flex flex-col gap-1.5">
+                      <div className="text-xs font-normal text-slate-400">Plot #{plot.id}</div>
+                      <div className="font-semibold text-slate-900">{plot.title}</div>
+                      {profile?.award_label && (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#C7745A] flex-shrink-0" />
+                          <span className="text-xs font-medium text-[#B8644C] tracking-wide uppercase">
+                            {profile.award_label}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </th>
                 );
               })}
@@ -134,8 +138,8 @@ function Row({
           key={`${label}-${index}`}
           className={`border-t border-[#E7D3CC] p-4 text-sm ${
             isHighlight
-              ? 'font-bold text-[#B8644C] bg-[#FAF5F2]'
-              : 'text-slate-700'
+              ? 'font-bold text-[#B8644C] bg-white'
+              : 'text-slate-700 bg-white'
           }`}
         >
           {value}

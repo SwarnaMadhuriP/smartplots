@@ -141,7 +141,7 @@ export default function ComparisonsPage() {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleCustomAnalyze();
                       }}
-                      placeholder="e.g., Building an off-grid cabin, long-term appreciation..."
+                      placeholder="e.g., Building a house, Farming..."
                       className="min-w-0 flex-1 rounded-full border border-[#E7D3CC] px-4 py-2.5 text-sm outline-none focus:border-[#C7745A] bg-[#FAF5F2]"
                     />
                     <button
