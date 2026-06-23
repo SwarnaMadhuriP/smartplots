@@ -1,13 +1,11 @@
+'use client';
+
 import { Home, Map, Sparkles, Heart, Scale, Bookmark } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 const navItems = [
-  {
-    label: 'Discover Plots',
-    icon: Home,
-    href: `/plots`,
-    active: true,
-  },
+  { label: 'Discover Plots', icon: Home, href: '/' },
   { label: 'Map Explorer', icon: Map, href: '/map' },
   { label: 'AI Insights', icon: Sparkles, href: '/insights' },
   { label: 'Watchlist', icon: Heart, href: '/watchlist' },
@@ -16,6 +14,8 @@ const navItems = [
 ];
 
 export default function Sidebar() {
+  const pathname = usePathname();
+
   return (
     <aside className="h-screen w-64 shrink-0 border-r border-[#E7D3CC] bg-[#F8F3ED] p-6">
       <div className="mb-10">
@@ -31,13 +31,17 @@ export default function Sidebar() {
       <nav className="space-y-3">
         {navItems.map((item) => {
           const Icon = item.icon;
+          const isActive =
+            item.href === '/'
+              ? pathname === '/'
+              : pathname.startsWith(item.href);
 
           return (
             <Link
               key={item.label}
               href={item.href}
               className={`flex w-full items-center gap-4 rounded-2xl px-5 py-4 text-left text-sm font-medium transition ${
-                item.active
+                isActive
                   ? 'bg-[#C7745A] text-white shadow-lg shadow-[#E7D3CC]'
                   : 'text-slate-700 hover:bg-[#F3E6E1]'
               }`}
