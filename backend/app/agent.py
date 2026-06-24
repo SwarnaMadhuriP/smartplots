@@ -36,8 +36,8 @@ if os.environ.get("GOOGLE_GENAI_USE_VERTEXAI") == "False":
         os.environ["GOOGLE_API_KEY"] = gemini_key
 
 
-planner_agent = SequentialAgent(
-    name="planner_agent",
+smartplots_orchestrator = SequentialAgent(
+    name="smartplots_orchestrator",
     sub_agents=[
         search_agent,
         ParallelAgent(
@@ -53,7 +53,7 @@ planner_agent = SequentialAgent(
     ],
 )
 
-root_agent = planner_agent
+root_agent = smartplots_orchestrator
 
 app = App(
     root_agent=root_agent,

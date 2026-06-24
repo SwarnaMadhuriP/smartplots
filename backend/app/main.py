@@ -14,7 +14,6 @@ import json
 import uuid
 from app.portfolio_agents import (
     run_comparison_analysis,
-    run_market_insights,
     run_goal_recommendation,
     run_refine_recommendation,
 )
