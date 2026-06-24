@@ -15,7 +15,26 @@ import uuid
 from app.portfolio_agents import (
     run_comparison_analysis,
     run_market_insights,
-    run_catalog_advice,
+    run_goal_recommendation,
+    run_refine_recommendation,
+)
+from app.advisor.schemas import (
+    GoalKey,
+    FeedbackOption,
+    GoalPreferences,
+    RecommendRequest,
+    FeedbackRequest,
+    AdvisorRecommendation,
+    PlotRecommendationItem,
+    AlternativeItem,
+)
+from app.advisor.feedback_mapper import (
+    create_session,
+    get_session,
+    update_session_recommendation,
+    apply_feedback_to_preferences,
+    is_no_op_feedback,
+    FEEDBACK_LABELS,
 )
 from app.agent import root_agent
 from google.adk.runners import Runner
@@ -61,59 +80,19 @@ app.add_middleware(
 Base.metadata.create_all(bind=engine)
 
 
-# fetch all plots
 @app.get("/plots")
 def get_plots(search: str | None = Query(default=None), db: Session = Depends(get_db)):
     query = db.query(Plot)
-
     if search:
         query = apply_plot_search_filters(query, search)
-
     plots = query.all()
     return [plot.to_json_dict() for plot in plots]
-
-
-@app.get("/plots/insights")
-def get_market_insights(db: Session = Depends(get_db)):
-    plots = db.query(Plot).all()
-    if not plots:
-        return {
-            "market_overview": "No plots available in the catalog yet.",
-            "top_picks": [],
-            "critical_risk_alerts": [],
-            "development_readiness_notes": "N/A",
-        }
-    try:
-        return run_market_insights(plots)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-class AdviseRequest(BaseModel):
-    question: str
-
-
-class AdviseResponse(BaseModel):
-    answer: str
-
-
-@app.post("/plots/advise")
-def advise_on_plots(request: AdviseRequest, db: Session = Depends(get_db)):
-    plots = db.query(Plot).all()
-    try:
-        answer = run_catalog_advice(plots, request.question)
-        return {"answer": answer}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/plots/{plot_id}")
 def get_plot(plot_id: int, db: Session = Depends(get_db)):
     plot = db.query(Plot).filter(Plot.id == plot_id).first()
-
     if not plot:
         raise HTTPException(status_code=404, detail="Plot not found")
-
     return {
         "id": plot.id,
         "title": plot.title,
@@ -150,7 +129,6 @@ class AnalysisSchema(BaseModel):
 @app.post("/plots/{plot_id}/analyze")
 def analyze_plot(plot_id: int, request: AnalyzeRequest, db: Session = Depends(get_db)):
     plot = db.query(Plot).filter(Plot.id == plot_id).first()
-
     if not plot:
         raise HTTPException(status_code=404, detail="Plot not found")
 
@@ -178,7 +156,6 @@ def analyze_plot(plot_id: int, request: AnalyzeRequest, db: Session = Depends(ge
         from google.genai import types
 
         genai_client = get_genai_client()
-
         response = genai_client.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt,
@@ -188,11 +165,9 @@ def analyze_plot(plot_id: int, request: AnalyzeRequest, db: Session = Depends(ge
                 temperature=0.2,
             ),
         )
-
         if response.text is None:
             raise ValueError("Response text is empty")
         data = json.loads(response.text)
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -234,9 +209,7 @@ async def ai_search(request: SmartSearchRequest):
                 response_text = event.content.parts[0].text or ""
     except Exception as e:
         print(f"Error during agent pipeline execution: {e}")
-        response_text = (
-            "Rate Limiting Exceeded - Please try again in 20-30 seconds"
-        )
+        response_text = "Rate Limiting Exceeded - Please try again in 20-30 seconds"
 
     session = await session_service.get_session(
         app_name="app", user_id="user", session_id=session_id
@@ -267,3 +240,125 @@ def compare_plots(request: CompareRequest, db: Session = Depends(get_db)):
         return run_comparison_analysis(plots, request.goal)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/advisor/recommend", response_model=AdvisorRecommendation)
+def advisor_recommend(request: RecommendRequest, db: Session = Depends(get_db)):
+    """
+    Goal-based recommendation endpoint.
+    1. Scores the full plot catalog with the Python scorer.
+    2. Sends top candidates to Gemini with a structured prompt.
+    3. Creates a session token for subsequent feedback calls.
+    """
+    plots = db.query(Plot).all()
+    if not plots:
+        raise HTTPException(status_code=400, detail="No plots in catalog.")
+
+    try:
+        result = run_goal_recommendation(
+            goal=request.goal,
+            preferences=request.preferences,
+            plots=plots,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        err_str = str(e)
+        is_quota = "quota" in err_str.lower() or "RESOURCE_EXHAUSTED" in err_str
+        detail = (
+            "Daily AI quota reached. Please try again tomorrow or upgrade your API key."
+            if is_quota
+            else err_str
+        )
+        raise HTTPException(status_code=503, detail=detail)
+
+    shortlisted_ids = [p["plot_id"] for p in result.get("recommended_plots", [])]
+    recommendation = AdvisorRecommendation(
+        recommended_plots=[
+            PlotRecommendationItem(**p) for p in result.get("recommended_plots", [])
+        ],
+        primary_recommendation=PlotRecommendationItem(**result["primary_recommendation"]),
+        confidence=result.get("confidence", 0.5),
+        reasoning=result.get("reasoning", []),
+        risks=result.get("risks", []),
+        tradeoffs=result.get("tradeoffs", []),
+        alternatives=[AlternativeItem(**a) for a in result.get("alternatives", [])],
+        next_steps=result.get("next_steps", []),
+        session_token="",
+    )
+
+    token = create_session(
+        goal=request.goal,
+        preferences=request.preferences,
+        shortlisted_plot_ids=shortlisted_ids,
+        recommendation=recommendation,
+    )
+    recommendation.session_token = token
+    return recommendation
+
+
+@app.post("/advisor/feedback", response_model=AdvisorRecommendation)
+def advisor_feedback(request: FeedbackRequest, db: Session = Depends(get_db)):
+    """
+    Refines the advisor recommendation based on user feedback.
+    - show_alternatives / good_recommendation: no AI call, returns existing result.
+    - All other feedback: adjusts preferences, re-scores, and re-runs AI.
+    """
+    session = get_session(request.session_token)
+    if session is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Session not found or expired. Please start a new recommendation.",
+        )
+
+    feedback = request.feedback
+
+    if is_no_op_feedback(feedback):
+        return session.last_recommendation
+
+    updated_prefs = apply_feedback_to_preferences(session.preferences, feedback)
+    feedback_label = FEEDBACK_LABELS.get(feedback, feedback.value)
+
+    plots = db.query(Plot).all()
+    if not plots:
+        raise HTTPException(status_code=400, detail="No plots in catalog.")
+
+    try:
+        result = run_refine_recommendation(
+            goal=session.goal,
+            updated_preferences=updated_prefs,
+            plots=plots,
+            feedback_label=feedback_label,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        err_str = str(e)
+        is_quota = "quota" in err_str.lower() or "RESOURCE_EXHAUSTED" in err_str
+        detail = (
+            "Daily AI quota reached. Please try again tomorrow or upgrade your API key."
+            if is_quota
+            else err_str
+        )
+        raise HTTPException(status_code=503, detail=detail)
+
+    refined = AdvisorRecommendation(
+        recommended_plots=[
+            PlotRecommendationItem(**p) for p in result.get("recommended_plots", [])
+        ],
+        primary_recommendation=PlotRecommendationItem(**result["primary_recommendation"]),
+        confidence=result.get("confidence", 0.5),
+        reasoning=result.get("reasoning", []),
+        risks=result.get("risks", []),
+        tradeoffs=result.get("tradeoffs", []),
+        alternatives=[AlternativeItem(**a) for a in result.get("alternatives", [])],
+        next_steps=result.get("next_steps", []),
+        session_token=request.session_token,
+    )
+
+    update_session_recommendation(
+        token=request.session_token,
+        feedback=feedback,
+        new_recommendation=refined,
+        updated_preferences=updated_prefs,
+    )
+    return refined

@@ -1,7 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { MapPin, MoreVertical, Scale, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { MapPin, MoreVertical, Scale, Loader2, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Plot } from '@/data/mockPlots';
 import ReactMarkdown from 'react-markdown';
@@ -209,6 +210,14 @@ export default function RightPanel({ plot, setAiReasons }: Props) {
 
           {loading ? 'Analyzing plot...' : 'View full analysis →'}
         </button>
+
+        <Link
+          href={`/insights?goal=build_home`}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#E7D3CC] bg-white py-4 font-semibold text-slate-700 transition hover:bg-[#FAF5F2]"
+        >
+          <Sparkles size={18} className="text-[#C7745A]" />
+          Ask Advisor
+        </Link>
 
         {analysis && (
           <section

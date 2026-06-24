@@ -1,5 +1,6 @@
 import Image from 'next/image';
-import { Bookmark, MapPin } from 'lucide-react';
+import Link from 'next/link';
+import { Bookmark, MapPin, Sparkles } from 'lucide-react';
 import { Plot } from '@/data/mockPlots';
 
 type Props = {
@@ -128,6 +129,15 @@ export default function PlotCard({
           >
             {isCompared ? 'Added to Compare' : 'Compare'}
           </button>
+
+          <Link
+            href={`/insights`}
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-1.5 rounded-full border border-[#E7D3CC] bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-[#F3E6E1]"
+          >
+            <Sparkles size={14} className="text-[#C7745A]" />
+            Ask Advisor
+          </Link>
         </div>
       </div>
     </div>
