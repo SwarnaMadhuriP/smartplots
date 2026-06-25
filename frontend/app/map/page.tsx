@@ -15,7 +15,6 @@ export default function MapPage() {
   const [plots, setPlots] = useState<Plot[]>([]);
   const [selectedPlotId, setSelectedPlotId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [aiReasons, setAiReasons] = useState<Record<number, string[]>>({});
 
   useEffect(() => {
     async function fetchPlots() {
@@ -64,7 +63,7 @@ export default function MapPage() {
       </section>
 
       {selectedPlot && (
-        <RightPanel plot={selectedPlot} setAiReasons={setAiReasons} />
+        <RightPanel plot={selectedPlot} />
       )}
     </main>
   );

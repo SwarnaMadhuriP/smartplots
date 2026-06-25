@@ -21,7 +21,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const [aiReasons, setAiReasons] = useState<Record<number, string[]>>({});
+  const [aiReasons] = useState<Record<number, string[]>>({});
   const [comparisonPlotIds, setComparisonPlotIds] = useState<number[]>([]);
   const [aiResponse, setAiResponse] = useState<string>('');
 
@@ -309,7 +309,7 @@ export default function Home() {
       </section>
 
       {selectedPlot && (
-        <RightPanel plot={selectedPlot} setAiReasons={setAiReasons} />
+        <RightPanel plot={selectedPlot} />
       )}
     </main>
   );

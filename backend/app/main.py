@@ -6,7 +6,7 @@ from .models import Plot, apply_plot_search_filters
 from .models import DocumentChunk
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
-from typing import List, Literal
+from typing import List, Literal, cast as type_cast
 from app.prompts import ANALYZE_PROMPT, RAG_ASK_PROMPT
 from google import genai
 from dotenv import load_dotenv
@@ -218,7 +218,7 @@ def ask_about_plot(plot_id: int, request: AskRequest, db: Session = Depends(get_
     from pgvector.sqlalchemy import Vector
     from sqlalchemy import cast, func as sqlfunc
 
-    chunks = (
+    chunks: list[DocumentChunk] = (
         db.query(DocumentChunk)
         .filter(DocumentChunk.plot_id == plot_id)
         .order_by(
@@ -275,17 +275,22 @@ def ask_about_plot(plot_id: int, request: AskRequest, db: Session = Depends(get_
         for chunk in chunks:
             filename = chunk.document.filename if chunk.document else "unknown"
             key = (filename, chunk.page_number)
-            if key not in seen:
-                seen.add(key)
-                sources.append(
-                    {
-                        "filename": filename,
-                        "page": chunk.page_number,
-                        "excerpt": chunk.chunk_text[:200] + "..."
-                        if len(chunk.chunk_text) > 200
-                        else chunk.chunk_text,
-                    }
-                )
+            
+            if key in seen:
+                continue
+
+            seen.add(key)
+
+            text = type_cast(str, chunk.chunk_text) if chunk.chunk_text else ""
+            excerpt = text[:200] + "..." if len(text) > 200 else text
+
+            sources.append(
+                {
+                    "filename": filename,
+                    "page": chunk.page_number,
+                    "excerpt": excerpt,
+                }
+            )
 
     return {
         "answer": answer,

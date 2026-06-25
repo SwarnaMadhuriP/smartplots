@@ -81,7 +81,7 @@ export default function PlotCard({
               </p>
 
               <p className="mt-1 text-xs font-medium leading-tight text-slate-500">
-                Preference Match
+                AI Match Score
               </p>
             </div>
           </div>
@@ -141,7 +141,7 @@ export default function PlotCard({
             className="flex items-center gap-1.5 rounded-full border border-[#E7D3CC] bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-[#F3E6E1]"
           >
             <Sparkles size={14} className="text-[#C7745A]" />
-            Ask Advisor
+            Ask SmartPlots
           </Link>
         </div>
       </div>

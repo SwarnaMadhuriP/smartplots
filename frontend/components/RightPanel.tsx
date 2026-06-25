@@ -1,84 +1,25 @@
 'use client';
 
 import Image from 'next/image';
-import Link from 'next/link';
-import { MapPin, MoreVertical, Scale, Loader2, Sparkles } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { MapPin, MoreVertical } from 'lucide-react';
+import { useState } from 'react';
 import { Plot } from '@/data/mockPlots';
 import ReactMarkdown from 'react-markdown';
 
 type Props = {
   plot: Plot;
-  setAiReasons: React.Dispatch<React.SetStateAction<Record<number, string[]>>>;
 };
 
-type Analysis = {
-  plot_id: number;
-  investment_score: number;
-  risk_level: string;
-  growth_potential: string;
-  summary: string;
-  reasons: string[];
-  pros: string[];
-  cons: string[];
-};
+export default function RightPanel({ plot }: Props) {
+  return <RightPanelContent key={plot.id} plot={plot} />;
+}
 
-export default function RightPanel({ plot, setAiReasons }: Props) {
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  const [loading, setLoading] = useState(false);
-
+function RightPanelContent({ plot }: Props) {
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [sources, setSources] = useState<{ filename: string; page: number | null; excerpt: string }[]>([]);
   const [hasDocs, setHasDocs] = useState(false);
   const [askLoading, setAskLoading] = useState(false);
-
-  useEffect(() => {
-    setAnalysis(null);
-    setLoading(false);
-    setQuestion('');
-    setAnswer('');
-    setSources([]);
-    setHasDocs(false);
-    setAskLoading(false);
-  }, [plot.id]);
-
-  async function handleAnalyze() {
-    try {
-      setLoading(true);
-      setAnalysis(null);
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL}/plots/${plot.id}/analyze`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            question: 'Analyze this plot for investment potential.',
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to analyze plot');
-      }
-
-      const data = await response.json();
-
-      setAnalysis(data);
-
-      setAiReasons((prev) => ({
-        ...prev,
-        [plot.id]: data.reasons || [],
-      }));
-    } catch {
-      setAnalysis(null);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handleAskQuestion() {
     if (!question.trim()) return;
@@ -145,23 +86,19 @@ export default function RightPanel({ plot, setAiReasons }: Props) {
         </p>
 
         <div className="mt-8 rounded-3xl bg-[#F3E6E1] p-6 shadow-sm">
-          <p className="text-sm font-semibold text-slate-900">
-            {analysis ? 'AI Investment Score' : 'Preference Match'}
-          </p>
+          <p className="text-sm font-semibold text-slate-900">AI Match Score</p>
 
           <div className="mt-4 flex items-center justify-between">
             <div>
               <span className="text-5xl font-bold text-[#B8644C]">
-                {analysis ? analysis.investment_score : plot.matchScore}
+                {plot.matchScore}
               </span>
 
               <span className="text-sm text-slate-500"> /10</span>
             </div>
 
             <p className="w-32 text-sm leading-relaxed text-slate-600">
-              {analysis
-                ? `${analysis.growth_potential} growth potential`
-                : 'Based on your selected preferences'}
+              Ranked using your search intent
             </p>
           </div>
         </div>
@@ -171,7 +108,7 @@ export default function RightPanel({ plot, setAiReasons }: Props) {
 
           <div className="mt-4 space-y-3 text-sm">
             <div className="flex justify-between">
-              <span className="text-slate-500">Est. Appreciation (5 yr)</span>
+              <span className="text-slate-500">5-Year Appreciation</span>
 
               <span className="font-semibold">{plot.appreciation}</span>
             </div>
@@ -183,16 +120,16 @@ export default function RightPanel({ plot, setAiReasons }: Props) {
             </div>
 
             <div className="flex justify-between">
-              <span className="text-slate-500">Liquidity</span>
+              <span className="text-slate-500">Ease of Resale</span>
 
               <span className="font-semibold">{plot.liquidity}</span>
             </div>
 
             <div className="flex justify-between">
-              <span className="text-slate-500">Risk Level</span>
+              <span className="text-slate-500">Investment Risk</span>
 
               <span className="font-semibold text-[#B8644C]">
-                {analysis?.risk_level ?? plot.riskLevel}
+                {plot.riskLevel}
               </span>
             </div>
           </div>
@@ -208,106 +145,11 @@ export default function RightPanel({ plot, setAiReasons }: Props) {
           </ul>
         </div>
 
-        <button
-          onClick={handleAnalyze}
-          disabled={loading}
-          className="mt-8 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#C7745A] py-4 font-semibold text-white shadow-lg shadow-[#E7D3CC] transition hover:bg-[#B8644C] disabled:cursor-not-allowed disabled:opacity-70"
-        >
-          {loading && <Loader2 size={18} className="animate-spin" />}
-
-          {loading ? 'Analyzing plot...' : 'View full analysis →'}
-        </button>
-
-        <Link
-          href={`/insights?goal=build_home`}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#E7D3CC] bg-white py-4 font-semibold text-slate-700 transition hover:bg-[#FAF5F2]"
-        >
-          <Sparkles size={18} className="text-[#C7745A]" />
-          Ask Advisor
-        </Link>
-
-        {analysis && (
-          <section
-            id="ai-insights"
-            className="mt-6 space-y-5 rounded-3xl border border-[#E7D3CC] bg-[#FAF5F2] p-6"
-          >
-            <h4 className="text-lg font-bold text-slate-900">
-              AI Full Analysis
-            </h4>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-white p-4">
-                <p className="text-xs text-slate-500">Investment Score</p>
-
-                <p className="mt-1 text-2xl font-bold text-[#B8644C]">
-                  {analysis.investment_score}/10
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-white p-4">
-                <p className="text-xs text-slate-500">Risk Level</p>
-
-                <p className="mt-1 text-2xl font-bold text-[#B8644C]">
-                  {analysis.risk_level}
-                </p>
-              </div>
-
-              <div className="col-span-2 rounded-xl bg-white p-4">
-                <p className="text-xs text-slate-500">Growth Potential</p>
-
-                <p className="mt-1 text-lg font-semibold text-[#B8644C]">
-                  {analysis.growth_potential}
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <h5 className="mb-2 font-semibold text-slate-900">Summary</h5>
-
-              <p className="break-words text-sm leading-relaxed text-slate-700">
-                {analysis.summary}
-              </p>
-            </div>
-
-            <div>
-              <h5 className="mb-2 font-semibold text-slate-900">Reasons</h5>
-
-              <ul className="space-y-2">
-                {analysis.reasons?.map((reason, index) => (
-                  <li
-                    key={index}
-                    className="rounded-xl bg-white/80 p-3 text-sm text-slate-700"
-                  >
-                    ✓ {reason}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div>
-              <h5 className="mb-2 font-semibold text-slate-900">Pros</h5>
-
-              <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
-                {analysis.pros?.map((pro, index) => (
-                  <li key={index}>{pro}</li>
-                ))}
-              </ul>
-            </div>
-
-            <div>
-              <h5 className="mb-2 font-semibold text-slate-900">Cons</h5>
-
-              <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">
-                {analysis.cons?.map((con, index) => (
-                  <li key={index}>{con}</li>
-                ))}
-              </ul>
-            </div>
-          </section>
-        )}
-
         <div className="mt-6 rounded-3xl border border-[#E7D3CC] bg-white p-6">
-          <h4 className="font-bold text-slate-900">Ask about this plot</h4>
+          <h4 className="font-bold text-slate-900">Ask SmartPlots about this plot</h4>
+          <p className="mt-1 text-sm text-slate-500">
+            Powered by brochures, reports, and property records.
+          </p>
 
           <div className="mt-4 flex gap-2">
             <input
@@ -361,10 +203,6 @@ export default function RightPanel({ plot, setAiReasons }: Props) {
           )}
         </div>
 
-        <button className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#E7D3CC] bg-white py-4 font-semibold text-slate-700 transition hover:bg-[#FAF5F2]">
-          <Scale size={18} />
-          Compare this plot
-        </button>
       </div>
     </aside>
   );
