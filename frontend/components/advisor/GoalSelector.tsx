@@ -132,10 +132,6 @@ function GoalCard({ goal, onSelect }: { goal: GoalDef; onSelect: (k: GoalKey) =>
         <p className="mt-1.5 text-xs text-slate-500 leading-relaxed">{goal.description}</p>
       </div>
 
-      {/* Arrow hint */}
-      <div className="relative self-end text-xs font-medium text-slate-300 group-hover:text-[#C7745A] transition-colors duration-200">
-        Select →
-      </div>
     </button>
   );
 }

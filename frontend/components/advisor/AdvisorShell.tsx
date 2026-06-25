@@ -8,12 +8,17 @@ import FeedbackBar, { FeedbackOption } from './FeedbackBar';
 import { Sparkles, AlertCircle } from 'lucide-react';
 
 const LS_KEY = 'smartplots_advisor_state';
+const COMPARE_LS_KEY = 'comparisonPlotIds';
+const MAX_COMPARE_PLOTS = 3;
 
 type Step = 'goal_select' | 'inputs' | 'loading' | 'recommendation';
 
 type PersistedState = {
   goal?: GoalKey;
   prefs?: GoalPreferences;
+  recommendation?: AdvisorRecommendation | null;
+  activeFeedback?: FeedbackOption;
+  showAlternatives?: boolean;
 };
 
 function loadPersistedState(): PersistedState {
@@ -35,6 +40,15 @@ function persistState(state: PersistedState) {
   }
 }
 
+function loadComparisonPlotIds() {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(COMPARE_LS_KEY) : null;
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
 const STEPS: Step[] = ['goal_select', 'inputs', 'recommendation'];
 
 type Props = {
@@ -43,32 +57,102 @@ type Props = {
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL ?? '';
 
+function formatAdvisorError(raw: unknown, fallback: string) {
+  const message = typeof raw === 'string' ? raw : fallback;
+  const lower = message.toLowerCase();
+
+  if (lower.includes('quota') || message.includes('RESOURCE_EXHAUSTED')) {
+    return 'Daily AI quota reached. Please try again tomorrow.';
+  }
+
+  if (
+    lower.includes('503') ||
+    lower.includes('unavailable') ||
+    lower.includes('overloaded') ||
+    lower.includes('high demand') ||
+    lower.includes('model is currently experiencing')
+  ) {
+    return 'The AI advisor is temporarily busy due to high demand. Please try again in a few minutes.';
+  }
+
+  return message;
+}
+
 export default function AdvisorShell({ initialGoal }: Props) {
   const saved = loadPersistedState();
+  const shouldRestoreRecommendation =
+    Boolean(saved.recommendation) && (!initialGoal || initialGoal === saved.goal);
   const [step, setStep] = useState<Step>(
-    initialGoal ?? saved.goal ? 'inputs' : 'goal_select',
+    shouldRestoreRecommendation ? 'recommendation' : initialGoal ?? saved.goal ? 'inputs' : 'goal_select',
   );
   const [goal, setGoal] = useState<GoalKey | undefined>(initialGoal ?? saved.goal);
   const [prefs, setPrefs] = useState<GoalPreferences | undefined>(saved.prefs);
-  const [recommendation, setRecommendation] = useState<AdvisorRecommendation | null>(null);
+  const [recommendation, setRecommendation] = useState<AdvisorRecommendation | null>(
+    shouldRestoreRecommendation ? saved.recommendation ?? null : null,
+  );
   const [feedbackLoading, setFeedbackLoading] = useState(false);
-  const [activeFeedback, setActiveFeedback] = useState<FeedbackOption | undefined>();
-  const [showAlternatives, setShowAlternatives] = useState(false);
+  const [activeFeedback, setActiveFeedback] = useState<FeedbackOption | undefined>(
+    shouldRestoreRecommendation ? saved.activeFeedback : undefined,
+  );
+  const [showAlternatives, setShowAlternatives] = useState(
+    shouldRestoreRecommendation ? Boolean(saved.showAlternatives) : false,
+  );
+  const [comparisonPlotIds, setComparisonPlotIds] = useState<number[]>(loadComparisonPlotIds);
+  const [compareMessage, setCompareMessage] = useState('');
   const [error, setError] = useState('');
 
-  useEffect(() => { persistState({ goal, prefs }); }, [goal, prefs]);
+  useEffect(() => {
+    persistState({
+      goal,
+      prefs,
+      recommendation,
+      activeFeedback,
+      showAlternatives,
+    });
+  }, [goal, prefs, recommendation, activeFeedback, showAlternatives]);
+
+  function handleToggleCompare(plotId: number) {
+    setComparisonPlotIds((prev) => {
+      const isAlreadyCompared = prev.includes(plotId);
+      const updated = isAlreadyCompared
+        ? prev.filter((id) => id !== plotId)
+        : prev.length >= MAX_COMPARE_PLOTS
+          ? prev
+          : [...prev, plotId];
+
+      if (!isAlreadyCompared && prev.length >= MAX_COMPARE_PLOTS) {
+        setCompareMessage('Compare list is full. Remove a plot before adding another.');
+        return prev;
+      }
+
+      localStorage.setItem(COMPARE_LS_KEY, JSON.stringify(updated));
+      setCompareMessage(
+        isAlreadyCompared
+          ? 'Removed from compare.'
+          : `Added to compare (${updated.length}/${MAX_COMPARE_PLOTS}).`,
+      );
+      return updated;
+    });
+  }
 
   function handleGoalSelect(selectedGoal: GoalKey) {
     setGoal(selectedGoal);
+    setPrefs(undefined);
+    setRecommendation(null);
     setStep('inputs');
     setError('');
+    setActiveFeedback(undefined);
+    setShowAlternatives(false);
   }
 
   function handleBack() {
     setGoal(undefined);
     setPrefs(undefined);
+    setRecommendation(null);
     setStep('goal_select');
     setError('');
+    setActiveFeedback(undefined);
+    setShowAlternatives(false);
   }
 
   function handleRestart() {
@@ -100,9 +184,7 @@ export default function AdvisorShell({ initialGoal }: Props) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        const raw = data.detail ?? 'Recommendation failed.';
-        const isQuota = raw.toLowerCase().includes('quota') || raw.includes('RESOURCE_EXHAUSTED');
-        throw new Error(isQuota ? '⏳ Daily AI quota reached. Please try again tomorrow.' : raw);
+        throw new Error(formatAdvisorError(data.detail, 'Recommendation failed.'));
       }
       const data: AdvisorRecommendation = await res.json();
       setRecommendation(data);
@@ -144,9 +226,7 @@ export default function AdvisorShell({ initialGoal }: Props) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        const raw = data.detail ?? 'Refinement failed.';
-        const isQuota = raw.toLowerCase().includes('quota') || raw.includes('RESOURCE_EXHAUSTED');
-        throw new Error(isQuota ? '⏳ Daily AI quota reached. Please try again tomorrow.' : raw);
+        throw new Error(formatAdvisorError(data.detail, 'Refinement failed.'));
       }
       const refined: AdvisorRecommendation = await res.json();
       setRecommendation(refined);
@@ -244,6 +324,9 @@ export default function AdvisorShell({ initialGoal }: Props) {
             <RecommendationCard
               recommendation={recommendation}
               showAlternatives={showAlternatives}
+              comparisonPlotIds={comparisonPlotIds}
+              compareMessage={compareMessage}
+              onToggleCompare={handleToggleCompare}
               feedbackSlot={(
                 <FeedbackBar
                   onFeedback={handleFeedback}

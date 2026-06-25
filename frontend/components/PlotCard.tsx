@@ -31,7 +31,7 @@ export default function PlotCard({
       tabIndex={0}
       className={`grid w-full grid-cols-[36%_1fr] overflow-hidden rounded-3xl text-left transition hover:-translate-y-1 hover:shadow-xl ${
         selected
-          ? 'border-2 border-[#EADBD4] bg-white shadow-xl shadow-[#EFE3DD]'
+          ? 'border-2 border-[#C7745A] bg-white shadow-xl shadow-[#D8B4A6]/50 ring-4 ring-[#F3E6E1]'
           : 'border border-transparent bg-white shadow-sm'
       }`}
     >
@@ -45,6 +45,11 @@ export default function PlotCard({
         {isBestMatch && (
           <div className="absolute left-4 top-4 rounded-full bg-[#B8644C] px-4 py-2 text-xs font-semibold text-white shadow">
             ⭐ Best Match
+          </div>
+        )}
+        {selected && (
+          <div className="absolute right-4 top-4 rounded-full bg-white px-4 py-2 text-xs font-semibold text-[#B8644C] shadow">
+            Selected
           </div>
         )}
         <div className="absolute bottom-4 right-4 rounded-full bg-black/60 px-4 py-2 text-xs font-semibold text-white">

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from app.models import Plot
 from app.advisor.schemas import GoalKey, GoalPreferences
+from textwrap import shorten
+
 
 # Human-readable labels for goals
 GOAL_LABELS: dict[GoalKey, str] = {
@@ -78,9 +80,10 @@ def _format_plot_entry(plot: Plot, score: float) -> str:
     if plot.risk_notes:
         lines.append(f"  Risk notes: {plot.risk_notes}")
     if plot.description:
-        # Trim long descriptions
-        desc = plot.description[:300].rstrip()
-        lines.append(f"  Description: {desc}{'...' if len(plot.description) > 300 else ''}")
+        lines.append(
+            # pyrefly: ignore [bad-argument-type]
+            f"  Description: {shorten(plot.description, width=300, placeholder='...')}"
+        )
 
     return "\n".join(lines)
 

@@ -21,10 +21,6 @@ from app.advisor.schemas import (
     GoalPreferences,
 )
 
-# ---------------------------------------------------------------------------
-# Session storage
-# ---------------------------------------------------------------------------
-
 SESSION_TTL = timedelta(minutes=30)
 
 
@@ -95,12 +91,6 @@ def update_session_recommendation(
         session.preferences = updated_preferences
         session.last_active = datetime.utcnow()
 
-
-# ---------------------------------------------------------------------------
-# Feedback → preference adjustments
-# ---------------------------------------------------------------------------
-
-# Human-readable labels for the refine prompt
 FEEDBACK_LABELS: dict[FeedbackOption, str] = {
     FeedbackOption.good_recommendation: "Good recommendation",
     FeedbackOption.too_expensive: "Too expensive",
@@ -111,7 +101,6 @@ FEEDBACK_LABELS: dict[FeedbackOption, str] = {
     FeedbackOption.prefer_lower_price_per_acre: "Prefer lower price per acre",
     FeedbackOption.show_alternatives: "Show alternatives",
 }
-
 
 def apply_feedback_to_preferences(
     preferences: GoalPreferences,

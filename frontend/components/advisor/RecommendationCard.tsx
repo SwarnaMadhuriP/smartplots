@@ -39,6 +39,7 @@ export type AdvisorRecommendation = {
   recommended_plots: PlotItem[];
   primary_recommendation: PlotItem;
   confidence: number;
+  notices?: string[];
   reasoning: string[];
   risks: string[];
   tradeoffs: string[];
@@ -56,13 +57,35 @@ type Props = {
   recommendation: AdvisorRecommendation;
   showAlternatives?: boolean;
   feedbackSlot?: ReactNode;
+  comparisonPlotIds?: number[];
+  compareMessage?: string;
+  onToggleCompare?: (plotId: number) => void;
 };
 
-export default function RecommendationCard({ recommendation, feedbackSlot }: Props) {
+export default function RecommendationCard({
+  recommendation,
+  feedbackSlot,
+  comparisonPlotIds = [],
+  compareMessage,
+  onToggleCompare,
+}: Props) {
   const { primary_recommendation: primary, alternatives } = recommendation;
   const confidencePct = Math.round(recommendation.confidence * 100);
-  const comparisonIds = [primary.plot_id, ...alternatives.slice(0, 2).map((a) => a.plot_id)].join(',');
   const evidenceItems: EvidenceItem[] = [];
+  const isPrimaryCompared = comparisonPlotIds.includes(primary.plot_id);
+  const compareHref = comparisonPlotIds.length > 0
+    ? `/comparisons?ids=${comparisonPlotIds.join(',')}`
+    : '/comparisons';
+
+  function isCompareDisabled(plotId: number) {
+    return !comparisonPlotIds.includes(plotId) && comparisonPlotIds.length >= 3;
+  }
+
+  function compareButtonLabel(plotId: number) {
+    if (comparisonPlotIds.includes(plotId)) return 'Added to Compare';
+    if (comparisonPlotIds.length >= 3) return 'Compare Full';
+    return 'Add to Compare';
+  }
 
   function getAlternativeScore(plotId: number) {
     return recommendation.recommended_plots.find((plot) => plot.plot_id === plotId)?.score;
@@ -130,20 +153,29 @@ export default function RecommendationCard({ recommendation, feedbackSlot }: Pro
 
           <div className="mt-4 flex flex-wrap items-center gap-2.5">
             <Link
-              href={`/plots/${primary.plot_id}`}
+              href={`/plots?plotId=${primary.plot_id}`}
               className="flex items-center gap-2 rounded-2xl bg-[#C7745A] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#B8644C] active:scale-[0.98]"
             >
               View Plot
               <ArrowUpRight size={14} />
             </Link>
 
-            {alternatives.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onToggleCompare?.(primary.plot_id)}
+              disabled={isCompareDisabled(primary.plot_id)}
+              className="flex items-center gap-2 rounded-2xl border border-[#E7D3CC] bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <GitCompare size={14} />
+              {compareButtonLabel(primary.plot_id)}
+            </button>
+
+            {comparisonPlotIds.length > 0 && (
               <Link
-                href={`/comparisons?ids=${comparisonIds}`}
-                className="flex items-center gap-2 rounded-2xl border border-[#E7D3CC] bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A]"
+                href={compareHref}
+                className="rounded-2xl border border-[#E7D3CC] bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A]"
               >
-                <GitCompare size={14} />
-                Compare
+                View Compare ({comparisonPlotIds.length}/3)
               </Link>
             )}
 
@@ -161,6 +193,35 @@ export default function RecommendationCard({ recommendation, feedbackSlot }: Pro
 
       <section className="min-h-0 flex-1 overflow-y-auto border border-[#E7D3CC] bg-white p-4 shadow-sm">
         {feedbackSlot}
+
+        {(compareMessage || isPrimaryCompared) && (
+          <div className="mt-4 border border-[#E7D3CC] bg-[#FAF5F2] px-4 py-3">
+            <p className="text-sm font-semibold text-slate-900">
+              {compareMessage ?? 'Recommended plot added to compare.'}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              You can compare up to 3 plots at a time.
+            </p>
+          </div>
+        )}
+
+        {recommendation.notices && recommendation.notices.length > 0 && (
+          <div className="mt-4 border border-[#E7D3CC] bg-[#FAF5F2] px-4 py-3">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[#C7745A]" />
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Closest Matches Notice</p>
+                <div className="mt-1 space-y-1">
+                  {recommendation.notices.map((notice) => (
+                    <p key={notice} className="text-sm leading-snug text-slate-600">
+                      {notice}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
           <div>
@@ -279,11 +340,19 @@ export default function RecommendationCard({ recommendation, feedbackSlot }: Pro
                       </div>
                     </div>
                     <Link
-                      href={`/plots/${alternative.plot_id}`}
+                      href={`/plots?plotId=${alternative.plot_id}`}
                       className="mt-3 self-start rounded-xl border border-[#E7D3CC] bg-white px-3.5 py-1.5 text-xs font-medium text-slate-500 transition hover:border-[#C7745A] hover:bg-[#F3E6E1] hover:text-[#C7745A]"
                     >
                       View
                     </Link>
+                    <button
+                      type="button"
+                      onClick={() => onToggleCompare?.(alternative.plot_id)}
+                      disabled={isCompareDisabled(alternative.plot_id)}
+                      className="mt-2 self-start rounded-xl border border-[#E7D3CC] bg-white px-3.5 py-1.5 text-xs font-medium text-slate-500 transition hover:border-[#C7745A] hover:bg-[#F3E6E1] hover:text-[#C7745A] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {compareButtonLabel(alternative.plot_id)}
+                    </button>
                   </div>
                 );
               })}

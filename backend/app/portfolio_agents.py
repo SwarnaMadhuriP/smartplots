@@ -44,7 +44,7 @@ def _call_with_retry(
     contents: str,
     config: types.GenerateContentConfig,
     max_retries: int = 3,
-):
+) -> types.GenerateContentResponse:
     """
     Calls Gemini with automatic retry on 429 RESOURCE_EXHAUSTED (per-minute limit).
     Extracts the suggested retry delay from the error response when available.
@@ -75,6 +75,8 @@ def _call_with_retry(
                     "Daily AI quota reached. Please wait until tomorrow or upgrade your API plan."
                 ) from e
             raise
+
+    raise RuntimeError("Max retries exhausted without a successful response.")
 
 
 class ComparePlotProfile(BaseModel):
@@ -378,8 +380,11 @@ def run_goal_recommendation(
 
         if not response.text:
             raise ValueError("AI recommendation returned empty response.")
+        data = json.loads(response.text)
 
-        return json.loads(response.text)
+        validated = GoalRecommendationOutput.model_validate(data)
+
+        return validated.model_dump()
 
     except Exception as e:
         raise RuntimeError(f"AI recommendation failed: {e}") from e

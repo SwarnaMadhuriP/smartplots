@@ -252,6 +252,8 @@ def advisor_recommend(request: RecommendRequest, db: Session = Depends(get_db)):
     if not plots:
         raise HTTPException(status_code=400, detail="No plots in catalog.")
 
+    notices = _advisor_preflight_notices(plots, request.preferences)
+
     try:
         result = run_goal_recommendation(
             goal=request.goal,
@@ -261,14 +263,7 @@ def advisor_recommend(request: RecommendRequest, db: Session = Depends(get_db)):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
-        err_str = str(e)
-        is_quota = "quota" in err_str.lower() or "RESOURCE_EXHAUSTED" in err_str
-        detail = (
-            "Daily AI quota reached. Please try again tomorrow or upgrade your API key."
-            if is_quota
-            else err_str
-        )
-        raise HTTPException(status_code=503, detail=detail)
+        raise HTTPException(status_code=503, detail=_advisor_runtime_error_detail(e))
 
     shortlisted_ids = [p["plot_id"] for p in result.get("recommended_plots", [])]
     recommendation = AdvisorRecommendation(
@@ -277,6 +272,7 @@ def advisor_recommend(request: RecommendRequest, db: Session = Depends(get_db)):
         ],
         primary_recommendation=PlotRecommendationItem(**result["primary_recommendation"]),
         confidence=result.get("confidence", 0.5),
+        notices=notices,
         reasoning=result.get("reasoning", []),
         risks=result.get("risks", []),
         tradeoffs=result.get("tradeoffs", []),
@@ -293,6 +289,44 @@ def advisor_recommend(request: RecommendRequest, db: Session = Depends(get_db)):
     )
     recommendation.session_token = token
     return recommendation
+
+
+def _advisor_preflight_notices(plots: list[Plot], preferences: GoalPreferences) -> list[str]:
+    notices: list[str] = []
+    preferred_location = preferences.preferred_location
+
+    if preferred_location:
+        location_words = preferred_location.strip().lower().split()
+        has_location_match = any(
+            any(word in f"{plot.city} {plot.state}".lower() for word in location_words)
+            for plot in plots
+        )
+
+        if not has_location_match:
+            notices.append(
+                f"No exact matches found in {preferred_location}. Showing closest available alternatives instead."
+            )
+
+    return notices
+
+
+def _advisor_runtime_error_detail(error: RuntimeError) -> str:
+    err_str = str(error)
+    err_lower = err_str.lower()
+
+    if "quota" in err_lower or "RESOURCE_EXHAUSTED" in err_str:
+        return "Daily AI quota reached. Please try again tomorrow or upgrade your API key."
+
+    if (
+        "503" in err_str
+        or "unavailable" in err_lower
+        or "overloaded" in err_lower
+        or "high demand" in err_lower
+        or "model is currently experiencing" in err_lower
+    ):
+        return "The AI advisor is temporarily busy due to high demand. Please try again in a few minutes."
+
+    return err_str
 
 
 @app.post("/advisor/feedback", response_model=AdvisorRecommendation)
@@ -321,6 +355,8 @@ def advisor_feedback(request: FeedbackRequest, db: Session = Depends(get_db)):
     if not plots:
         raise HTTPException(status_code=400, detail="No plots in catalog.")
 
+    notices = _advisor_preflight_notices(plots, updated_prefs)
+
     try:
         result = run_refine_recommendation(
             goal=session.goal,
@@ -331,14 +367,7 @@ def advisor_feedback(request: FeedbackRequest, db: Session = Depends(get_db)):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except RuntimeError as e:
-        err_str = str(e)
-        is_quota = "quota" in err_str.lower() or "RESOURCE_EXHAUSTED" in err_str
-        detail = (
-            "Daily AI quota reached. Please try again tomorrow or upgrade your API key."
-            if is_quota
-            else err_str
-        )
-        raise HTTPException(status_code=503, detail=detail)
+        raise HTTPException(status_code=503, detail=_advisor_runtime_error_detail(e))
 
     refined = AdvisorRecommendation(
         recommended_plots=[
@@ -346,6 +375,7 @@ def advisor_feedback(request: FeedbackRequest, db: Session = Depends(get_db)):
         ],
         primary_recommendation=PlotRecommendationItem(**result["primary_recommendation"]),
         confidence=result.get("confidence", 0.5),
+        notices=notices,
         reasoning=result.get("reasoning", []),
         risks=result.get("risks", []),
         tradeoffs=result.get("tradeoffs", []),

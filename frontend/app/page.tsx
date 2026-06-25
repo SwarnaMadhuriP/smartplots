@@ -25,7 +25,15 @@ export default function Home() {
   const [comparisonPlotIds, setComparisonPlotIds] = useState<number[]>([]);
   const [aiResponse, setAiResponse] = useState<string>('');
 
-  async function fetchPlots(searchQuery = '') {
+  function selectPlotFromResults(data: Plot[], preferredPlotId?: number) {
+    const preferredPlot = preferredPlotId
+      ? data.find((plot) => plot.id === preferredPlotId)
+      : undefined;
+
+    setSelectedPlotId(preferredPlot?.id ?? data[0]?.id ?? null);
+  }
+
+  async function fetchPlots(searchQuery = '', preferredPlotId?: number) {
     try {
       setLoading(true);
       setError('');
@@ -44,7 +52,7 @@ export default function Home() {
       const data: Plot[] = await response.json();
 
       setPlots(data);
-      setSelectedPlotId(data[0]?.id ?? null);
+      selectPlotFromResults(data, preferredPlotId);
     } catch (error) {
       console.error('Error fetching plots:', error);
 
@@ -54,7 +62,7 @@ export default function Home() {
     }
   }
 
-  async function fetchAIPlots(searchQuery: string) {
+  async function fetchAIPlots(searchQuery: string, preferredPlotId?: number) {
     try {
       setLoading(true);
       setError('');
@@ -80,7 +88,7 @@ export default function Home() {
 
       setPlots(data.plots);
       setAiResponse(data.response);
-      setSelectedPlotId(data.plots[0]?.id ?? null);
+      selectPlotFromResults(data.plots, preferredPlotId);
     } catch (error) {
       console.error('Error fetching AI plots:', error);
       setError('Could not run AI search.');
@@ -106,17 +114,21 @@ export default function Home() {
 
   useEffect(() => {
     const searchFromUrl = searchParams.get('search') ?? '';
+    const plotIdFromUrl = Number(searchParams.get('plotId'));
+    const preferredPlotId = Number.isFinite(plotIdFromUrl) && plotIdFromUrl > 0
+      ? plotIdFromUrl
+      : undefined;
 
     setSearchQuery(searchFromUrl);
     // Use same routing logic for URL-based searches for consistency
     if (searchFromUrl) {
       if (isSimpleQuery(searchFromUrl)) {
-        fetchPlots(searchFromUrl);
+        fetchPlots(searchFromUrl, preferredPlotId);
       } else {
-        fetchAIPlots(searchFromUrl);
+        fetchAIPlots(searchFromUrl, preferredPlotId);
       }
     } else {
-      fetchPlots();
+      fetchPlots('', preferredPlotId);
     }
   }, [searchParams]);
 
@@ -147,6 +159,14 @@ export default function Home() {
 
     localStorage.setItem('watchlist', JSON.stringify(watchlist));
   }, [watchlist, watchlistLoaded]);
+
+  useEffect(() => {
+    if (loading || !selectedPlotId) return;
+
+    document
+      .getElementById(`plot-card-${selectedPlotId}`)
+      ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [loading, selectedPlotId]);
 
   const selectedPlot =
     plots.find((plot) => plot.id === selectedPlotId) ?? plots[0];
@@ -269,20 +289,21 @@ export default function Home() {
 
         <div className="mt-6 space-y-5">
           {plots.map((plot, index) => (
-            <PlotCard
-              key={plot.id}
-              isSaved={watchlist.includes(plot.id)}
-              isCompared={comparisonPlotIds.includes(plot.id)}
-              onToggleWatchlist={() => toggleWatchlist(plot.id)}
-              onToggleCompare={() => toggleCompare(plot.id)}
-              plot={{
-                ...plot,
-                aiReasons: aiReasons[plot.id],
-              }}
-              selected={plot.id === selectedPlotId}
-              onSelect={() => setSelectedPlotId(plot.id)}
-              isBestMatch={index === 0}
-            />
+            <div key={plot.id} id={`plot-card-${plot.id}`} className="scroll-mt-8">
+              <PlotCard
+                isSaved={watchlist.includes(plot.id)}
+                isCompared={comparisonPlotIds.includes(plot.id)}
+                onToggleWatchlist={() => toggleWatchlist(plot.id)}
+                onToggleCompare={() => toggleCompare(plot.id)}
+                plot={{
+                  ...plot,
+                  aiReasons: aiReasons[plot.id],
+                }}
+                selected={plot.id === selectedPlotId}
+                onSelect={() => setSelectedPlotId(plot.id)}
+                isBestMatch={index === 0}
+              />
+            </div>
           ))}
         </div>
       </section>

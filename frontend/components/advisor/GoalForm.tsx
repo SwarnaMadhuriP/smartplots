@@ -95,11 +95,11 @@ const GOAL_FIELDS: Record<GoalKey, FieldDef[]> = {
 };
 
 export const GOAL_LABELS: Record<GoalKey, string> = {
-  build_home:          'Build a Home',
+  build_home: 'Build a Home',
   invest_appreciation: 'Invest for Appreciation',
-  retirement_lifestyle:'Retirement / Lifestyle',
-  commercial:          'Commercial Development',
-  maximize_value:      'Maximize Value',
+  retirement_lifestyle: 'Retirement / Lifestyle',
+  commercial: 'Commercial Development',
+  maximize_value: 'Maximize Value',
 };
 
 type Props = {
@@ -205,11 +205,10 @@ export default function GoalForm({ goal, initialPrefs, onBack, onSubmit, loading
                         key={opt.value}
                         type="button"
                         onClick={() => setField(field.key, opt.value)}
-                        className={`rounded-full border px-5 py-2 text-sm font-medium transition ${
-                          active
+                        className={`rounded-full border px-5 py-2 text-sm font-medium transition ${active
                             ? 'bg-[#C7745A] border-[#C7745A] text-white shadow-sm'
                             : 'border-[#E7D3CC] bg-white text-slate-500 hover:border-[#C7745A] hover:text-[#C7745A]'
-                        }`}
+                          }`}
                       >
                         {opt.label}
                       </button>
@@ -235,11 +234,10 @@ export default function GoalForm({ goal, initialPrefs, onBack, onSubmit, loading
                         key={opt.value}
                         type="button"
                         onClick={() => toggleInList(listKey, opt.value)}
-                        className={`rounded-full border px-5 py-2 text-sm font-medium transition ${
-                          active
+                        className={`rounded-full border px-5 py-2 text-sm font-medium transition ${active
                             ? 'bg-[#C7745A] border-[#C7745A] text-white shadow-sm'
                             : 'border-[#E7D3CC] bg-white text-slate-500 hover:border-[#C7745A] hover:text-[#C7745A]'
-                        }`}
+                          }`}
                       >
                         {opt.label}
                       </button>
@@ -267,14 +265,12 @@ export default function GoalForm({ goal, initialPrefs, onBack, onSubmit, loading
                 <button
                   type="button"
                   onClick={() => setField(field.key, !val)}
-                  className={`relative shrink-0 h-6 w-11 rounded-full transition-colors duration-200 ${
-                    val ? 'bg-[#C7745A]' : 'bg-[#E7D3CC]'
-                  }`}
+                  className={`relative shrink-0 h-6 w-11 rounded-full transition-colors duration-200 ${val ? 'bg-[#C7745A]' : 'bg-[#E7D3CC]'
+                    }`}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
-                      val ? 'translate-x-5' : ''
-                    }`}
+                    className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${val ? 'translate-x-5' : ''
+                      }`}
                   />
                 </button>
               </div>
@@ -297,7 +293,7 @@ export default function GoalForm({ goal, initialPrefs, onBack, onSubmit, loading
             Finding your best plots…
           </>
         ) : (
-          'Find My Best Plots →'
+          'Find My Best Plots'
         )}
       </button>
     </form>

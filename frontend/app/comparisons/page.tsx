@@ -5,6 +5,19 @@ import Sidebar from '@/components/Sidebar';
 import ComparisonTable from '@/components/ComparisonTable';
 import { ComparisonPlot, ComparisonAnalysis } from '@/types/comparisons';
 import { Sparkles, Loader2 } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+
+const MAX_COMPARE_PLOTS = 3;
+
+function parseComparisonIds(value: string | null) {
+  if (!value) return [];
+
+  return value
+    .split(',')
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id) && id > 0)
+    .slice(0, MAX_COMPARE_PLOTS);
+}
 
 export default function ComparisonsPage() {
   const [plots, setPlots] = useState<ComparisonPlot[]>([]);
@@ -12,6 +25,7 @@ export default function ComparisonsPage() {
   const [analysis, setAnalysis] = useState<ComparisonAnalysis | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [goal, setGoal] = useState('');
+  const searchParams = useSearchParams();
 
   async function fetchAnalysis(plotIds: number[], currentGoal?: string) {
     if (plotIds.length === 0) return;
@@ -47,9 +61,17 @@ export default function ComparisonsPage() {
   useEffect(() => {
     async function loadComparisonPlots() {
       try {
+        const queryIds = parseComparisonIds(searchParams.get('ids'));
         const storedIds = localStorage.getItem('comparisonPlotIds');
+        const ids: number[] = queryIds.length > 0
+          ? queryIds
+          : storedIds
+            ? JSON.parse(storedIds).slice(0, MAX_COMPARE_PLOTS)
+            : [];
 
-        const ids: number[] = storedIds ? JSON.parse(storedIds) : [];
+        if (queryIds.length > 0) {
+          localStorage.setItem('comparisonPlotIds', JSON.stringify(queryIds));
+        }
 
         if (ids.length === 0) {
           setPlots([]);
@@ -84,7 +106,7 @@ export default function ComparisonsPage() {
     }
 
     loadComparisonPlots();
-  }, []);
+  }, [searchParams]);
 
   const handleClearComparison = () => {
     localStorage.removeItem('comparisonPlotIds');
