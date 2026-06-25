@@ -1,3 +1,4 @@
+from typing import TypedDict
 from .database import SessionLocal
 from .models import Plot, PlotImage, Document, DocumentChunk
 from sqlalchemy import text
@@ -226,8 +227,13 @@ images = [
 db.add_all(images)
 db.commit()
 
+class DocToIngest(TypedDict):
+    file_path: str
+    plot_id: int
+    document_type: str
+
 # Ingest real uploaded documents for plot 1 and plot 2
-docs_to_ingest = [
+docs_to_ingest: list[DocToIngest] = [
     # Plot 1 — Green Valley Residential Plot
     {
         "file_path": "uploads/documents/plot\u20131/brochure.pdf",
