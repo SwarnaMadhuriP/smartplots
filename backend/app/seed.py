@@ -226,42 +226,116 @@ images = [
 db.add_all(images)
 db.commit()
 
-# Ingest sample synthetic documents for RAG vector search
+# Ingest real uploaded documents for plot 1 and plot 2
 docs_to_ingest = [
+    # Plot 1 — Green Valley Residential Plot
     {
-        "file_path": "uploads/documents/brochures/green_valley_brochure.txt",
+        "file_path": "uploads/documents/plot\u20131/brochure.pdf",
         "plot_id": 1,
         "document_type": "brochure",
     },
     {
-        "file_path": "uploads/documents/zoning_docs/lakeside_zoning_notes.txt",
-        "plot_id": 2,
-        "document_type": "zoning_doc",
+        "file_path": "uploads/documents/plot\u20131/investment_report.pdf",
+        "plot_id": 1,
+        "document_type": "investment_report",
     },
     {
-        "file_path": "uploads/documents/utility_reports/downtown_utility_report.txt",
-        "plot_id": 3,
+        "file_path": "uploads/documents/plot\u20131/property_fact_sheet.pdf",
+        "plot_id": 1,
+        "document_type": "property_fact_sheet",
+    },
+    {
+        "file_path": "uploads/documents/plot\u20131/zoning_report.pdf",
+        "plot_id": 1,
+        "document_type": "zoning_report",
+    },
+    {
+        "file_path": "uploads/documents/plot\u20131/soil_report.pdf",
+        "plot_id": 1,
+        "document_type": "soil_report",
+    },
+    {
+        "file_path": "uploads/documents/plot\u20131/utility_report.pdf",
+        "plot_id": 1,
         "document_type": "utility_report",
     },
     {
-        "file_path": "uploads/documents/county_records/farmland_flood_note.txt",
-        "plot_id": 4,
-        "document_type": "county_record",
+        "file_path": "uploads/documents/plot\u20131/neighborhood_guide.pdf",
+        "plot_id": 1,
+        "document_type": "neighborhood_guide",
     },
     {
-        "file_path": "uploads/documents/hoa_docs/oak_ridge_hoa_rules.txt",
-        "plot_id": 5,
-        "document_type": "hoa_doc",
+        "file_path": "uploads/documents/plot\u20131/property_disclosure.pdf",
+        "plot_id": 1,
+        "document_type": "property_disclosure",
+    },
+    {
+        "file_path": "uploads/documents/plot\u20131/county_growth_report.pdf",
+        "plot_id": 1,
+        "document_type": "county_growth_report",
+    },
+    {
+        "file_path": "uploads/documents/plot\u20131/due_diligence_checklist.pdf",
+        "plot_id": 1,
+        "document_type": "due_diligence_checklist",
+    },
+    # Plot 2 — Lakeside Retreat Land
+    {
+        "file_path": "uploads/documents/plot\u20132/brochure.pdf",
+        "plot_id": 2,
+        "document_type": "brochure",
+    },
+    {
+        "file_path": "uploads/documents/plot\u20132/property_fact_sheet.pdf",
+        "plot_id": 2,
+        "document_type": "property_fact_sheet",
+    },
+    {
+        "file_path": "uploads/documents/plot\u20132/zoning_report.pdf",
+        "plot_id": 2,
+        "document_type": "zoning_report",
+    },
+    {
+        "file_path": "uploads/documents/plot\u20132/soil_report.pdf",
+        "plot_id": 2,
+        "document_type": "soil_report",
+    },
+    {
+        "file_path": "uploads/documents/plot\u20132/utility_report.pdf",
+        "plot_id": 2,
+        "document_type": "utility_report",
+    },
+    {
+        "file_path": "uploads/documents/plot\u20132/neighborhood_guide.pdf",
+        "plot_id": 2,
+        "document_type": "neighborhood_guide",
+    },
+    {
+        "file_path": "uploads/documents/plot\u20132/property_disclosure.pdf",
+        "plot_id": 2,
+        "document_type": "property_disclosure",
+    },
+    {
+        "file_path": "uploads/documents/plot\u20132/county_growth_report.pdf",
+        "plot_id": 2,
+        "document_type": "county_growth_report",
+    },
+    {
+        "file_path": "uploads/documents/plot\u20132/due_diligence_checklist.pdf",
+        "plot_id": 2,
+        "document_type": "due_diligence_checklist",
     },
 ]
 
-print("Ingesting sample documents...")
+print("Ingesting real plot documents for RAG...")
 for doc in docs_to_ingest:
+    print(f"  Ingesting {doc['file_path']}...")
     ingest_document(
         db=db,
         file_path=doc["file_path"],
         plot_id=doc["plot_id"],
         document_type=doc["document_type"],
     )
+print(f"Done. Ingested {len(docs_to_ingest)} documents.")
 
 db.close()

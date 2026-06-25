@@ -3,10 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .database import engine, Base, get_db
 from .models import Plot, apply_plot_search_filters
+from .models import DocumentChunk
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import List, Literal
-from app.prompts import ANALYZE_PROMPT
+from app.prompts import ANALYZE_PROMPT, RAG_ASK_PROMPT
 from google import genai
 from dotenv import load_dotenv
 import os
@@ -179,6 +180,117 @@ def analyze_plot(plot_id: int, request: AnalyzeRequest, db: Session = Depends(ge
         "reasons": data.get("reasons", []),
         "pros": data.get("pros", []),
         "cons": data.get("cons", []),
+    }
+
+
+class AskRequest(BaseModel):
+    question: str
+
+
+@app.post("/plots/{plot_id}/ask")
+def ask_about_plot(plot_id: int, request: AskRequest, db: Session = Depends(get_db)):
+    """RAG-powered Q&A: embeds the question, retrieves relevant document chunks,
+    and asks Gemini to answer grounded in those chunks."""
+    plot = db.query(Plot).filter(Plot.id == plot_id).first()
+    if not plot:
+        raise HTTPException(status_code=404, detail="Plot not found")
+
+    question = request.question.strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Question cannot be empty")
+
+    genai_client = get_genai_client()
+
+    # 1. Embed the question
+    from google.genai import types
+
+    embed_response = genai_client.models.embed_content(
+        model="gemini-embedding-2",
+        contents=question,
+        config=types.EmbedContentConfig(output_dimensionality=768),
+    )
+    if embed_response.embeddings and len(embed_response.embeddings) > 0:
+        q_vector = embed_response.embeddings[0].values
+    else:
+        raise HTTPException(status_code=500, detail="Failed to embed question")
+
+    # 2. Retrieve top-5 relevant chunks for this plot via cosine distance
+    from pgvector.sqlalchemy import Vector
+    from sqlalchemy import cast, func as sqlfunc
+
+    chunks = (
+        db.query(DocumentChunk)
+        .filter(DocumentChunk.plot_id == plot_id)
+        .order_by(
+            DocumentChunk.embedding.cosine_distance(cast(q_vector, Vector(768)))
+        )
+        .limit(5)
+        .all()
+    )
+
+    # 3. Build context string from retrieved chunks
+    has_docs = len(chunks) > 0
+    if has_docs:
+        context_parts = []
+        for chunk in chunks:
+            filename = chunk.document.filename if chunk.document else "unknown"
+            page = f" (page {chunk.page_number})" if chunk.page_number else ""
+            context_parts.append(f"[{filename}{page}]\n{chunk.chunk_text}")
+        context = "\n\n---\n\n".join(context_parts)
+    else:
+        context = "No uploaded documents are available for this plot. Answer from plot data only."
+
+    # 4. Build prompt and call Gemini
+    prompt = RAG_ASK_PROMPT.format(
+        question=question,
+        title=plot.title,
+        city=plot.city,
+        state=plot.state,
+        price=plot.price,
+        area=plot.area_acres,
+        zoning=plot.zoning_type or "N/A",
+        road="Yes" if plot.road_access else "No",
+        water="Yes" if plot.water_access else "No",
+        electricity="Yes" if plot.electricity else "No",
+        sewer="Yes" if plot.sewer else "No",
+        ideal_for=plot.ideal_for or "N/A",
+        risk_notes=plot.risk_notes or "N/A",
+        context=context,
+    )
+
+    try:
+        response = genai_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(temperature=0.1),
+        )
+        answer = response.text or "No answer generated."
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # 5. Build source references
+    sources = []
+    if has_docs:
+        seen = set()
+        for chunk in chunks:
+            filename = chunk.document.filename if chunk.document else "unknown"
+            key = (filename, chunk.page_number)
+            if key not in seen:
+                seen.add(key)
+                sources.append(
+                    {
+                        "filename": filename,
+                        "page": chunk.page_number,
+                        "excerpt": chunk.chunk_text[:200] + "..."
+                        if len(chunk.chunk_text) > 200
+                        else chunk.chunk_text,
+                    }
+                )
+
+    return {
+        "answer": answer,
+        "sources": sources,
+        "has_documents": has_docs,
     }
 
 

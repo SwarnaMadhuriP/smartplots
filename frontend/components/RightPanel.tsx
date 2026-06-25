@@ -29,6 +29,8 @@ export default function RightPanel({ plot, setAiReasons }: Props) {
 
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
+  const [sources, setSources] = useState<{ filename: string; page: number | null; excerpt: string }[]>([]);
+  const [hasDocs, setHasDocs] = useState(false);
   const [askLoading, setAskLoading] = useState(false);
 
   useEffect(() => {
@@ -36,6 +38,8 @@ export default function RightPanel({ plot, setAiReasons }: Props) {
     setLoading(false);
     setQuestion('');
     setAnswer('');
+    setSources([]);
+    setHasDocs(false);
     setAskLoading(false);
   }, [plot.id]);
 
@@ -82,9 +86,10 @@ export default function RightPanel({ plot, setAiReasons }: Props) {
     try {
       setAskLoading(true);
       setAnswer('');
+      setSources([]);
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL}/plots/${plot.id}/analyze`,
+        `${process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL}/plots/${plot.id}/ask`,
         {
           method: 'POST',
           headers: {
@@ -100,7 +105,9 @@ export default function RightPanel({ plot, setAiReasons }: Props) {
 
       const data = await response.json();
 
-      setAnswer(data.summary || data.answer || 'No answer returned.');
+      setAnswer(data.answer || 'No answer returned.');
+      setSources(data.sources || []);
+      setHasDocs(data.has_documents ?? false);
     } catch {
       setAnswer('Something went wrong while asking AI.');
     } finally {
@@ -325,8 +332,31 @@ export default function RightPanel({ plot, setAiReasons }: Props) {
           </div>
 
           {answer && (
-            <div className="prose prose-sm mt-4 max-w-none rounded-xl bg-[#FAF5F2] p-4 text-slate-700 prose-headings:text-slate-900 prose-strong:text-slate-900">
-              <ReactMarkdown>{answer}</ReactMarkdown>
+            <div className="mt-4 space-y-3">
+              <div className="prose prose-sm max-w-none rounded-xl bg-[#FAF5F2] p-4 text-slate-700 prose-headings:text-slate-900 prose-strong:text-slate-900">
+                <ReactMarkdown>{answer}</ReactMarkdown>
+              </div>
+
+              {hasDocs && sources.length > 0 && (
+                <div className="rounded-xl border border-[#E7D3CC] bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Sources</p>
+                  <div className="flex flex-wrap gap-2">
+                    {sources.map((src, i) => (
+                      <span
+                        key={i}
+                        title={src.excerpt}
+                        className="inline-flex items-center gap-1 rounded-full border border-[#E7D3CC] bg-[#FAF5F2] px-3 py-1 text-xs text-slate-600"
+                      >
+                        📄 {src.filename}{src.page ? ` · p${src.page}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!hasDocs && (
+                <p className="text-xs text-slate-400 italic">No uploaded documents for this plot — answered from plot data.</p>
+              )}
             </div>
           )}
         </div>
