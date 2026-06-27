@@ -2,16 +2,30 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import engine, Base, get_db
-from .models import Plot, apply_plot_search_filters
+from .models import Plot
 from .models import DocumentChunk
+from .search import PlotSearchFilters, search_plots
+from .sorting import SortOption, sort_plot_dicts
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
-from typing import List, Literal, cast as type_cast
-from app.prompts import ANALYZE_PROMPT, RAG_ASK_PROMPT
+from typing import Any, cast as type_cast
+from app.prompts import RAG_ASK_PROMPT
+from app.analysis_tools import (
+    build_plot_analysis,
+    calculate_investment_metrics,
+    calculate_location_metrics,
+    calculate_risk_metrics,
+)
+from app.routers import (
+    QuestionRoute,
+    SearchRoute,
+    classify_question,
+    classify_search_query,
+)
 from google import genai
 from dotenv import load_dotenv
-import os
 import json
+import os
 import uuid
 from app.portfolio_agents import (
     run_comparison_analysis,
@@ -80,13 +94,50 @@ app.add_middleware(
 Base.metadata.create_all(bind=engine)
 
 
+def _plot_search_filters_from_query(
+    search: str | None = Query(default=None, description="Keyword search alias"),
+    keyword: str | None = Query(default=None),
+    city: str | None = Query(default=None),
+    state: str | None = Query(default=None),
+    min_price: float | None = Query(default=None, ge=0),
+    max_price: float | None = Query(default=None, ge=0),
+    min_area: float | None = Query(default=None, ge=0),
+    max_area: float | None = Query(default=None, ge=0),
+    zoning_type: str | None = Query(default=None),
+    listing_type: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    road_access: bool | None = Query(default=None),
+    water_access: bool | None = Query(default=None),
+    electricity: bool | None = Query(default=None),
+    sewer: bool | None = Query(default=None),
+) -> PlotSearchFilters:
+    return PlotSearchFilters(
+        keyword=keyword or search,
+        city=city,
+        state=state,
+        min_price=min_price,
+        max_price=max_price,
+        min_area=min_area,
+        max_area=max_area,
+        zoning_type=zoning_type,
+        listing_type=listing_type,
+        status=status,
+        road_access=road_access,
+        water_access=water_access,
+        electricity=electricity,
+        sewer=sewer,
+    )
+
+
 @app.get("/plots")
-def get_plots(search: str | None = Query(default=None), db: Session = Depends(get_db)):
-    query = db.query(Plot)
-    if search:
-        query = apply_plot_search_filters(query, search)
-    plots = query.all()
+def get_plots(
+    filters: PlotSearchFilters = Depends(_plot_search_filters_from_query),
+    sort_by: SortOption = Query(default=SortOption.BEST_MATCH),
+    db: Session = Depends(get_db),
+):
+    plots = search_plots(db, filters, sort_by=sort_by)
     return [plot.to_json_dict() for plot in plots]
+
 
 @app.get("/plots/{plot_id}")
 def get_plot(plot_id: int, db: Session = Depends(get_db)):
@@ -116,16 +167,6 @@ class AnalyzeRequest(BaseModel):
     question: str | None = None
 
 
-class AnalysisSchema(BaseModel):
-    investment_score: int = Field(..., description="Investment score between 0 and 10")
-    risk_level: Literal["Low", "Medium", "High"]
-    growth_potential: Literal["Low", "Medium", "High"]
-    summary: str
-    reasons: List[str]
-    pros: List[str]
-    cons: List[str]
-
-
 @app.post("/plots/{plot_id}/analyze")
 def analyze_plot(plot_id: int, request: AnalyzeRequest, db: Session = Depends(get_db)):
     plot = db.query(Plot).filter(Plot.id == plot_id).first()
@@ -133,58 +174,99 @@ def analyze_plot(plot_id: int, request: AnalyzeRequest, db: Session = Depends(ge
         raise HTTPException(status_code=404, detail="Plot not found")
 
     question = request.question or "Analyze this plot for investment potential."
-    price_per_acre = plot.price / plot.area_acres if plot.area_acres > 0 else None
-
-    prompt = ANALYZE_PROMPT.format(
-        question=question,
-        title=plot.title,
-        city=plot.city,
-        state=plot.state,
-        price=plot.price,
-        area=plot.area_acres,
-        price_per_acre=price_per_acre if price_per_acre else "N/A",
-        zoning=plot.zoning_type or "N/A",
-        road="Yes" if plot.road_access else "No",
-        water="Yes" if plot.water_access else "No",
-        electricity="Yes" if plot.electricity else "No",
-        sewer="Yes" if plot.sewer else "No",
-        ideal_for=plot.ideal_for or "N/A",
-        risk_notes=plot.risk_notes or "N/A",
+    investment = calculate_investment_metrics(plot)
+    risk = calculate_risk_metrics(plot)
+    growth_potential = (
+        "Medium"
+        if plot.computed_appreciation == "Moderate"
+        else plot.computed_appreciation
     )
-
-    try:
-        from google.genai import types
-
-        genai_client = get_genai_client()
-        response = genai_client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=AnalysisSchema,
-                temperature=0.2,
-            ),
-        )
-        if response.text is None:
-            raise ValueError("Response text is empty")
-        data = json.loads(response.text)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    reasons = [
+        f"Investment score is {investment['investment_score']}/10 from deterministic SmartPlots metrics",
+        f"Risk level is {risk['risk_level']} with an overall risk score of {risk['overall_risk_score']}/10",
+        f"Development readiness is {investment['development_readiness']}",
+    ]
+    summary = (
+        f"{plot.title} was analyzed for: {question} "
+        f"The deterministic investment score is {investment['investment_score']}/10, "
+        f"with {risk['risk_level'].lower()} risk and {growth_potential.lower()} growth potential."
+    )
 
     return {
         "plot_id": plot.id,
-        "investment_score": data.get("investment_score"),
-        "risk_level": data.get("risk_level"),
-        "growth_potential": data.get("growth_potential"),
-        "summary": data.get("summary"),
-        "reasons": data.get("reasons", []),
-        "pros": data.get("pros", []),
-        "cons": data.get("cons", []),
+        "investment_score": investment["investment_score"],
+        "risk_level": risk["risk_level"],
+        "growth_potential": growth_potential,
+        "summary": summary,
+        "reasons": reasons,
+        "pros": investment["pros"],
+        "cons": investment["cons"] + risk["mitigation_suggestions"][:2],
     }
 
 
 class AskRequest(BaseModel):
     question: str
+
+
+def _format_metric_answer_prompt(
+    plot: Plot,
+    question: str,
+    route: QuestionRoute,
+    analysis: dict[str, Any],
+) -> str:
+    return f"""
+You are SmartPlots AI. Answer the user's question using only the plot data and
+deterministic SmartPlots analysis below.
+
+Rules:
+- Do not calculate new scores.
+- Do not invent facts or use outside knowledge.
+- Explain the provided metrics in concise, user-friendly language.
+- If the metric bundle does not contain enough information, say what is missing.
+
+Question route: {route.value}
+User question: {question}
+
+Plot:
+- ID: {plot.id}
+- Title: {plot.title}
+- Location: {plot.city}, {plot.state}
+- Price: ${plot.price:,.0f}
+- Area: {plot.area_acres} acres
+- Zoning: {plot.zoning_type or "N/A"}
+- Road access: {"Yes" if plot.road_access else "No"}
+- Water access: {"Yes" if plot.water_access else "No"}
+- Electricity: {"Yes" if plot.electricity else "No"}
+- Sewer: {"Yes" if plot.sewer else "No"}
+- Ideal for: {plot.ideal_for or "N/A"}
+- Risk notes: {plot.risk_notes or "N/A"}
+
+Deterministic analysis:
+{analysis}
+"""
+
+
+def _answer_metric_question(plot: Plot, question: str, route: QuestionRoute) -> str:
+    if route == QuestionRoute.INVESTMENT:
+        analysis = {"investment": calculate_investment_metrics(plot)}
+    elif route == QuestionRoute.RISK:
+        analysis = {"risk": calculate_risk_metrics(plot)}
+    elif route == QuestionRoute.LOCATION:
+        analysis = {"location": calculate_location_metrics(plot)}
+    else:
+        analysis = build_plot_analysis(plot)
+
+    from google.genai import types
+
+    try:
+        response = get_genai_client().models.generate_content(
+            model="gemini-2.5-flash",
+            contents=_format_metric_answer_prompt(plot, question, route, analysis),
+            config=types.GenerateContentConfig(temperature=0.1),
+        )
+        return response.text or "No answer generated."
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/plots/{plot_id}/ask")
@@ -198,6 +280,15 @@ def ask_about_plot(plot_id: int, request: AskRequest, db: Session = Depends(get_
     question = request.question.strip()
     if not question:
         raise HTTPException(status_code=400, detail="Question cannot be empty")
+
+    question_route = classify_question(question)
+    if question_route != QuestionRoute.DOCUMENT:
+        return {
+            "answer": _answer_metric_question(plot, question, question_route),
+            "sources": [],
+            "has_documents": False,
+            "route": question_route.value,
+        }
 
     genai_client = get_genai_client()
 
@@ -216,14 +307,12 @@ def ask_about_plot(plot_id: int, request: AskRequest, db: Session = Depends(get_
 
     # 2. Retrieve top-5 relevant chunks for this plot via cosine distance
     from pgvector.sqlalchemy import Vector
-    from sqlalchemy import cast, func as sqlfunc
+    from sqlalchemy import cast
 
     chunks: list[DocumentChunk] = (
         db.query(DocumentChunk)
         .filter(DocumentChunk.plot_id == plot_id)
-        .order_by(
-            DocumentChunk.embedding.cosine_distance(cast(q_vector, Vector(768)))
-        )
+        .order_by(DocumentChunk.embedding.cosine_distance(cast(q_vector, Vector(768))))
         .limit(5)
         .all()
     )
@@ -275,7 +364,7 @@ def ask_about_plot(plot_id: int, request: AskRequest, db: Session = Depends(get_
         for chunk in chunks:
             filename = chunk.document.filename if chunk.document else "unknown"
             key = (filename, chunk.page_number)
-            
+
             if key in seen:
                 continue
 
@@ -296,6 +385,7 @@ def ask_about_plot(plot_id: int, request: AskRequest, db: Session = Depends(get_
         "answer": answer,
         "sources": sources,
         "has_documents": has_docs,
+        "route": question_route.value,
     }
 
 
@@ -303,8 +393,83 @@ class SmartSearchRequest(BaseModel):
     query: str
 
 
-@app.post("/ai/search")
-async def ai_search(request: SmartSearchRequest):
+class SearchFiltersPayload(BaseModel):
+    keyword: str | None = None
+    city: str | None = None
+    state: str | None = None
+    min_price: float | None = None
+    max_price: float | None = None
+    min_area: float | None = None
+    max_area: float | None = None
+    zoning_type: str | None = None
+    listing_type: str | None = None
+    status: str | None = None
+    road_access: bool | None = None
+    water_access: bool | None = None
+    electricity: bool | None = None
+    sewer: bool | None = None
+
+    def to_filters(self, keyword: str | None = None) -> PlotSearchFilters:
+        return PlotSearchFilters(
+            keyword=keyword if keyword is not None else self.keyword,
+            city=self.city,
+            state=self.state,
+            min_price=self.min_price,
+            max_price=self.max_price,
+            min_area=self.min_area,
+            max_area=self.max_area,
+            zoning_type=self.zoning_type,
+            listing_type=self.listing_type,
+            status=self.status,
+            road_access=self.road_access,
+            water_access=self.water_access,
+            electricity=self.electricity,
+            sewer=self.sewer,
+        )
+
+    def active_dict(self) -> dict[str, Any]:
+        return {
+            key: value
+            for key, value in self.model_dump().items()
+            if value not in (None, "")
+        }
+
+
+class UnifiedSearchRequest(BaseModel):
+    query: str = ""
+    filters: SearchFiltersPayload = Field(default_factory=SearchFiltersPayload)
+    sort_by: SortOption = SortOption.BEST_MATCH
+
+
+def _run_db_search(
+    request: UnifiedSearchRequest,
+    db: Session,
+) -> dict[str, Any]:
+    query = request.query.strip()
+    filters = request.filters.to_filters(keyword=query or request.filters.keyword)
+    plots = search_plots(db, filters, sort_by=request.sort_by)
+    return {
+        "search_mode": "db",
+        "plots": [plot.to_json_dict() for plot in plots],
+        "ai_summary": None,
+        "filters": request.filters.active_dict()
+        | ({"keyword": query} if query else {}),
+    }
+
+
+def _agent_search_message(request: UnifiedSearchRequest) -> str:
+    active_filters = request.filters.active_dict()
+    return (
+        "Search SmartPlots using the user's natural-language query and any "
+        "structured filters below. Translate the request into supported "
+        "deterministic search filters before calling search_and_score_plots.\n\n"
+        f"User query: {request.query.strip()}\n"
+        f"Structured filters JSON: {json.dumps(active_filters, sort_keys=True)}"
+    )
+
+
+async def _run_agent_search(request: UnifiedSearchRequest) -> dict[str, Any]:
+    route = classify_search_query(request.query)
     session_id = str(uuid.uuid4())
     session_service = InMemorySessionService()
     await session_service.create_session(
@@ -318,7 +483,8 @@ async def ai_search(request: SmartSearchRequest):
             user_id="user",
             session_id=session_id,
             new_message=adk_types.Content(
-                role="user", parts=[adk_types.Part.from_text(text=request.query)]
+                role="user",
+                parts=[adk_types.Part.from_text(text=_agent_search_message(request))],
             ),
         ):
             if event.is_final_response() and event.content and event.content.parts:
@@ -334,11 +500,39 @@ async def ai_search(request: SmartSearchRequest):
         raise HTTPException(status_code=404, detail="Session not found")
     ranked_plots = session.state.get("ranked_plots", [])
     filters = session.state.get("filters", {})
+    ranked_plots = sort_plot_dicts(ranked_plots, request.sort_by)
 
     return {
-        "response": response_text,
+        "search_mode": "ai",
         "plots": ranked_plots,
+        "ai_summary": response_text,
         "filters": filters,
+        "route": route.value,
+    }
+
+
+@app.post("/search")
+async def unified_search(
+    request: UnifiedSearchRequest,
+    db: Session = Depends(get_db),
+):
+    query = request.query.strip()
+    route = classify_search_query(query)
+
+    if not query or route == SearchRoute.NORMAL_SEARCH:
+        return _run_db_search(request, db)
+
+    return await _run_agent_search(request)
+
+
+@app.post("/ai/search")
+async def ai_search(request: SmartSearchRequest):
+    unified = await _run_agent_search(UnifiedSearchRequest(query=request.query))
+    return {
+        "response": unified["ai_summary"],
+        "plots": unified["plots"],
+        "filters": unified["filters"],
+        "route": unified["route"],
     }
 
 
@@ -356,6 +550,7 @@ def compare_plots(request: CompareRequest, db: Session = Depends(get_db)):
         return run_comparison_analysis(plots, request.goal)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/advisor/recommend", response_model=AdvisorRecommendation)
 def advisor_recommend(request: RecommendRequest, db: Session = Depends(get_db)):
@@ -387,7 +582,9 @@ def advisor_recommend(request: RecommendRequest, db: Session = Depends(get_db)):
         recommended_plots=[
             PlotRecommendationItem(**p) for p in result.get("recommended_plots", [])
         ],
-        primary_recommendation=PlotRecommendationItem(**result["primary_recommendation"]),
+        primary_recommendation=PlotRecommendationItem(
+            **result["primary_recommendation"]
+        ),
         confidence=result.get("confidence", 0.5),
         notices=notices,
         reasoning=result.get("reasoning", []),
@@ -408,7 +605,9 @@ def advisor_recommend(request: RecommendRequest, db: Session = Depends(get_db)):
     return recommendation
 
 
-def _advisor_preflight_notices(plots: list[Plot], preferences: GoalPreferences) -> list[str]:
+def _advisor_preflight_notices(
+    plots: list[Plot], preferences: GoalPreferences
+) -> list[str]:
     notices: list[str] = []
     preferred_location = preferences.preferred_location
 
@@ -432,7 +631,9 @@ def _advisor_runtime_error_detail(error: RuntimeError) -> str:
     err_lower = err_str.lower()
 
     if "quota" in err_lower or "RESOURCE_EXHAUSTED" in err_str:
-        return "Daily AI quota reached. Please try again tomorrow or upgrade your API key."
+        return (
+            "Daily AI quota reached. Please try again tomorrow or upgrade your API key."
+        )
 
     if (
         "503" in err_str
@@ -490,7 +691,9 @@ def advisor_feedback(request: FeedbackRequest, db: Session = Depends(get_db)):
         recommended_plots=[
             PlotRecommendationItem(**p) for p in result.get("recommended_plots", [])
         ],
-        primary_recommendation=PlotRecommendationItem(**result["primary_recommendation"]),
+        primary_recommendation=PlotRecommendationItem(
+            **result["primary_recommendation"]
+        ),
         confidence=result.get("confidence", 0.5),
         notices=notices,
         reasoning=result.get("reasoning", []),

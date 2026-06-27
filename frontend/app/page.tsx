@@ -1,21 +1,100 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
-import SearchHero from '@/components/SearchHero';
+import SearchHero, {
+  SearchFilters,
+  emptySearchFilters,
+} from '@/components/SearchHero';
 import PlotCard from '@/components/PlotCard';
 import RightPanel from '@/components/RightPanel';
 import { Plot } from '@/data/mockPlots';
 import { SavedSearch } from '@/types/savedSearch';
 import { useSearchParams } from 'next/navigation';
 
+type SortOption =
+  | 'best_match'
+  | 'price_asc'
+  | 'price_desc'
+  | 'acres_asc'
+  | 'acres_desc'
+  | 'newest'
+  | 'ai_investment_score';
+
+type SearchMode = 'db' | 'ai';
+
+const SORT_LABELS: Record<SortOption, string> = {
+  best_match: 'Best Match',
+  price_asc: 'Price: Low to High',
+  price_desc: 'Price: High to Low',
+  acres_asc: 'Acres: Small to Large',
+  acres_desc: 'Acres: Large to Small',
+  newest: 'Newest Listings',
+  ai_investment_score: 'AI Investment Score',
+};
+
+function numericValue(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const parsed = Number(
+      value.replace(/[$,]/g, '').replace('Acres', '').trim(),
+    );
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function sortPlots(plots: Plot[], sortBy: SortOption): Plot[] {
+  if (sortBy === 'best_match') return [...plots];
+
+  return [...plots].sort((a, b) => {
+    if (sortBy === 'price_asc') {
+      return (
+        numericValue(a.rawPrice ?? a.price) -
+        numericValue(b.rawPrice ?? b.price)
+      );
+    }
+    if (sortBy === 'price_desc') {
+      return (
+        numericValue(b.rawPrice ?? b.price) -
+        numericValue(a.rawPrice ?? a.price)
+      );
+    }
+    if (sortBy === 'acres_asc') {
+      return (
+        numericValue(a.rawAcres ?? a.acres) -
+        numericValue(b.rawAcres ?? b.acres)
+      );
+    }
+    if (sortBy === 'acres_desc') {
+      return (
+        numericValue(b.rawAcres ?? b.acres) -
+        numericValue(a.rawAcres ?? a.acres)
+      );
+    }
+    if (sortBy === 'newest') {
+      return (b.createdAt ?? '').localeCompare(a.createdAt ?? '');
+    }
+    if (sortBy === 'ai_investment_score') {
+      return (
+        numericValue(b.aiInvestmentScore ?? b.investmentScore ?? b.matchScore) -
+        numericValue(a.aiInvestmentScore ?? a.investmentScore ?? a.matchScore)
+      );
+    }
+    return 0;
+  });
+}
+
 export default function Home() {
   const [plots, setPlots] = useState<Plot[]>([]);
+  const [basePlots, setBasePlots] = useState<Plot[]>([]);
   const [selectedPlotId, setSelectedPlotId] = useState<number | null>(null);
   const [watchlist, setWatchlist] = useState<number[]>([]);
   const [watchlistLoaded, setWatchlistLoaded] = useState(false);
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchFilters, setSearchFilters] =
+    useState<SearchFilters>(emptySearchFilters);
   const searchParams = useSearchParams();
 
   const [loading, setLoading] = useState(true);
@@ -24,6 +103,23 @@ export default function Home() {
   const [aiReasons] = useState<Record<number, string[]>>({});
   const [comparisonPlotIds, setComparisonPlotIds] = useState<number[]>([]);
   const [aiResponse, setAiResponse] = useState<string>('');
+  const [searchMode, setSearchMode] = useState<SearchMode>('db');
+  const [sortBy, setSortBy] = useState<SortOption>('best_match');
+
+  const sortOptions = useMemo(() => {
+    const options: SortOption[] = [
+      'best_match',
+      'price_asc',
+      'price_desc',
+      'acres_asc',
+      'acres_desc',
+      'newest',
+    ];
+    if (searchMode === 'ai') {
+      options.push('ai_investment_score');
+    }
+    return options;
+  }, [searchMode]);
 
   function selectPlotFromResults(data: Plot[], preferredPlotId?: number) {
     const preferredPlot = preferredPlotId
@@ -33,103 +129,92 @@ export default function Home() {
     setSelectedPlotId(preferredPlot?.id ?? data[0]?.id ?? null);
   }
 
-  async function fetchPlots(searchQuery = '', preferredPlotId?: number) {
-    try {
-      setLoading(true);
-      setError('');
-      setAiResponse('');
+  function normalizeFilters(filters: SearchFilters) {
+    const normalized: Record<string, string | number | boolean> = {};
 
-      const url = searchQuery
-        ? `${process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL}/plots?search=${encodeURIComponent(searchQuery)}`
-        : `${process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL}/plots`;
+    Object.entries(filters).forEach(([key, value]) => {
+      if (!value) return;
 
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch plots');
+      if (['min_price', 'max_price', 'min_area', 'max_area'].includes(key)) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          normalized[key] = numeric;
+        }
+        return;
       }
 
-      const data: Plot[] = await response.json();
+      if (
+        ['road_access', 'water_access', 'electricity', 'sewer'].includes(key)
+      ) {
+        normalized[key] = value === 'Yes';
+        return;
+      }
 
-      setPlots(data);
-      selectPlotFromResults(data, preferredPlotId);
-    } catch (error) {
-      console.error('Error fetching plots:', error);
+      normalized[key] = value;
+    });
 
-      setError('Could not load plots from the database.');
-    } finally {
-      setLoading(false);
-    }
+    return normalized;
   }
 
-  async function fetchAIPlots(searchQuery: string, preferredPlotId?: number) {
+  async function runUnifiedSearch(
+    query = '',
+    filters = searchFilters,
+    preferredPlotId?: number,
+  ) {
     try {
       setLoading(true);
       setError('');
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL}/ai/search`,
+        `${process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL}/search`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            query: searchQuery,
+            query,
+            filters: normalizeFilters(filters),
+            sort_by: sortBy,
           }),
         },
       );
 
       if (!response.ok) {
-        throw new Error('AI search failed');
+        throw new Error('Search failed');
       }
 
       const data = await response.json();
+      const mode: SearchMode = data.search_mode === 'ai' ? 'ai' : 'db';
+      const nextSortBy =
+        mode === 'db' && sortBy === 'ai_investment_score'
+          ? 'best_match'
+          : sortBy;
 
-      setPlots(data.plots);
-      setAiResponse(data.response);
-      selectPlotFromResults(data.plots, preferredPlotId);
+      setSearchMode(mode);
+      setSortBy(nextSortBy);
+      setBasePlots(data.plots);
+      setPlots(sortPlots(data.plots, nextSortBy));
+      setAiResponse(mode === 'ai' ? data.ai_summary || '' : '');
+      selectPlotFromResults(sortPlots(data.plots, nextSortBy), preferredPlotId);
     } catch (error) {
-      console.error('Error fetching AI plots:', error);
-      setError('Could not run AI search.');
+      console.error('Error running search:', error);
+      setError('Could not run search.');
     } finally {
       setLoading(false);
     }
   }
 
-  // Simple query: 1-2 plain words, no numbers or filter keywords.
-  // These are fast DB lookups — no need to burn AI quota on "dallas".
-  function isSimpleQuery(query: string): boolean {
-    const lower = query.trim().toLowerCase();
-    const words = lower.split(/\s+/);
-    const hasNumbers = /\d/.test(lower);
-    const filterKeywords = [
-      'under', 'over', 'above', 'below', 'less', 'more',
-      'acres', 'budget', 'near', 'with', 'without', 'cheap',
-      'affordable', 'farmland', 'commercial', 'residential',
-    ];
-    const hasFilterKeyword = filterKeywords.some((kw) => lower.includes(kw));
-    return words.length <= 2 && !hasNumbers && !hasFilterKeyword;
-  }
-
   useEffect(() => {
     const searchFromUrl = searchParams.get('search') ?? '';
     const plotIdFromUrl = Number(searchParams.get('plotId'));
-    const preferredPlotId = Number.isFinite(plotIdFromUrl) && plotIdFromUrl > 0
-      ? plotIdFromUrl
-      : undefined;
+    const preferredPlotId =
+      Number.isFinite(plotIdFromUrl) && plotIdFromUrl > 0
+        ? plotIdFromUrl
+        : undefined;
 
     setSearchQuery(searchFromUrl);
-    // Use same routing logic for URL-based searches for consistency
-    if (searchFromUrl) {
-      if (isSimpleQuery(searchFromUrl)) {
-        fetchPlots(searchFromUrl, preferredPlotId);
-      } else {
-        fetchAIPlots(searchFromUrl, preferredPlotId);
-      }
-    } else {
-      fetchPlots('', preferredPlotId);
-    }
+    runUnifiedSearch(searchFromUrl, emptySearchFilters, preferredPlotId);
   }, [searchParams]);
 
   useEffect(() => {
@@ -208,21 +293,18 @@ export default function Home() {
     localStorage.setItem('savedSearches', JSON.stringify(updated));
   };
 
-  const handleSearch = async (query: string) => {
+  const handleSearch = async (query: string, filters: SearchFilters) => {
     setSearchQuery(query);
-
-    if (!query.trim()) {
-      setAiResponse('');
-      await fetchPlots();
-    } else if (isSimpleQuery(query)) {
-      // Short city/keyword search — hit DB directly, no AI needed
-      setAiResponse('');
-      await fetchPlots(query);
-    } else {
-      // Natural language with filters/numbers — use AI pipeline
-      await fetchAIPlots(query);
-    }
+    setSearchFilters(filters);
+    await runUnifiedSearch(query, filters);
   };
+
+  function handleSortChange(nextSortBy: SortOption) {
+    setSortBy(nextSortBy);
+    const sorted = sortPlots(basePlots, nextSortBy);
+    setPlots(sorted);
+    selectPlotFromResults(sorted, selectedPlotId ?? undefined);
+  }
 
   const toggleCompare = (plotId: number) => {
     setComparisonPlotIds((prev) => {
@@ -244,6 +326,8 @@ export default function Home() {
         <SearchHero
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
+          filters={searchFilters}
+          setFilters={setSearchFilters}
           onSearch={handleSearch}
         />
 
@@ -255,10 +339,20 @@ export default function Home() {
           </p>
 
           <div className="flex items-center gap-4">
-            <p className="text-sm text-slate-500">
-              Sort by:{' '}
-              <span className="font-semibold text-slate-900">Relevance</span>
-            </p>
+            <label className="flex items-center gap-2 text-sm text-slate-500">
+              Sort by:
+              <select
+                value={sortBy}
+                onChange={(e) => handleSortChange(e.target.value as SortOption)}
+                className="rounded-full border border-[#E7D3CC] bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#C7745A]"
+              >
+                {sortOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {SORT_LABELS[option]}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             <button
               onClick={() => handleSaveSearch(searchQuery)}
@@ -289,7 +383,11 @@ export default function Home() {
 
         <div className="mt-6 space-y-5">
           {plots.map((plot, index) => (
-            <div key={plot.id} id={`plot-card-${plot.id}`} className="scroll-mt-8">
+            <div
+              key={plot.id}
+              id={`plot-card-${plot.id}`}
+              className="scroll-mt-8"
+            >
               <PlotCard
                 isSaved={watchlist.includes(plot.id)}
                 isCompared={comparisonPlotIds.includes(plot.id)}
@@ -308,9 +406,7 @@ export default function Home() {
         </div>
       </section>
 
-      {selectedPlot && (
-        <RightPanel plot={selectedPlot} />
-      )}
+      {selectedPlot && <RightPanel plot={selectedPlot} />}
     </main>
   );
 }

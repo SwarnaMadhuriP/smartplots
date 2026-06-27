@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, cast
+from typing import Optional
 
 from sqlalchemy import (
     Boolean,
@@ -14,8 +14,6 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from pgvector.sqlalchemy import Vector
-import re
-from sqlalchemy import or_
 from .database import Base, engine
 
 # Ensure pgvector extension is enabled in PostgreSQL
@@ -126,7 +124,9 @@ class Plot(Base):
             return self.insight.growth_potential
         desc_text = (
             # pyrefly: ignore [unsupported-operation]
-            (self.description or "") + " " + (self.nearby_landmarks or "")
+            (self.description or "")
+            + " "
+            + (self.nearby_landmarks or "")
         ).lower()
         if (
             "downtown" in desc_text
@@ -213,211 +213,24 @@ class Plot(Base):
             "latitude": self.latitude,
             "longitude": self.longitude,
             "price": f"${self.price:,.0f}",
+            "rawPrice": self.price,
             "acres": f"{self.area_acres} Acres",
+            "rawAcres": self.area_acres,
             "zone": self.zoning_type or "General",
             "matchScore": self.computed_match_score,
+            "investmentScore": self.computed_match_score,
             "appreciation": self.computed_appreciation,
             "rentalDemand": self.computed_rental_demand,
             "liquidity": self.computed_liquidity,
             "riskLevel": self.computed_risk_level,
+            "createdAt": self.created_at.isoformat() if self.created_at else None,
             "reasons": reasons[:3],
-            "highlights": [item.strip() for item in self.ideal_for.split(",")]
-            if self.ideal_for
-            else ["Suitable for residential or investment use"],
+            "highlights": (
+                [item.strip() for item in self.ideal_for.split(",")]
+                if self.ideal_for
+                else ["Suitable for residential or investment use"]
+            ),
         }
-
-
-def apply_plot_search_filters(query, search: str):
-    search_lower = search.lower().strip()
-
-    # 1. Parse Acres / Area expressions
-    # Example: "between 1.5 and 3 acres", "between 1 and 2 ac"
-    between_area_match = re.search(
-        r"between\s+(\d+(?:\.\d+)?)\s*(?:acres|acre|ac)?\s+and\s+(\d+(?:\.\d+)?)\s*(?:acres|acre|ac)",
-        search_lower,
-    )
-    if between_area_match:
-        min_area = float(between_area_match.group(1))
-        max_area = float(between_area_match.group(2))
-        query = query.filter(Plot.area_acres >= min_area, Plot.area_acres <= max_area)
-        search_lower = search_lower.replace(between_area_match.group(0), "")
-
-    # Example: "under 2 acres", "below 1.5 acre", "less than 1 ac"
-    max_area_match = re.search(
-        r"(under|below|less than)\s+(\d+(?:\.\d+)?)\s*(?:acres|acre|ac)",
-        search_lower,
-    )
-    if max_area_match:
-        max_area = float(max_area_match.group(2))
-        query = query.filter(Plot.area_acres <= max_area)
-        search_lower = search_lower.replace(max_area_match.group(0), "")
-
-    # Example: "above 1 acre", "over 2 acres", "greater than 0.5 acre", "more than 3 ac"
-    min_area_match = re.search(
-        r"(above|over|greater than|more than)\s+(\d+(?:\.\d+)?)\s*(?:acres|acre|ac)",
-        search_lower,
-    )
-    if min_area_match:
-        min_area = float(min_area_match.group(2))
-        query = query.filter(Plot.area_acres >= min_area)
-        search_lower = search_lower.replace(min_area_match.group(0), "")
-
-    # Example: standalone area like "1.5 acres", "2 acre"
-    standalone_area_match = re.search(
-        r"\b(\d+(?:\.\d+)?)\s*(?:acres|acre|ac)\b",
-        search_lower,
-    )
-    if standalone_area_match:
-        target_area = float(standalone_area_match.group(1))
-        query = query.filter(Plot.area_acres >= target_area)
-        search_lower = search_lower.replace(standalone_area_match.group(0), "")
-
-    # 2. Parse Utilities / Access (with support for "no", "without")
-    # Water
-    if "no water" in search_lower or "without water" in search_lower:
-        query = query.filter(Plot.water_access.is_(False))
-        search_lower = re.sub(
-            r"\b(?:no|without)\s+water\s*(?:access)?\b", "", search_lower
-        )
-    elif "water" in search_lower:
-        query = query.filter(Plot.water_access.is_(True))
-        search_lower = re.sub(r"\bwater\s*(?:access)?\b", "", search_lower)
-
-    # Road
-    if "no road" in search_lower or "without road" in search_lower:
-        query = query.filter(Plot.road_access.is_(False))
-        search_lower = re.sub(
-            r"\b(?:no|without)\s+road\s*(?:access)?\b", "", search_lower
-        )
-    elif "road" in search_lower:
-        query = query.filter(Plot.road_access.is_(True))
-        search_lower = re.sub(r"\broad\s*(?:access)?\b", "", search_lower)
-
-    # Electricity
-    if (
-        "no electricity" in search_lower
-        or "without electricity" in search_lower
-        or "no power" in search_lower
-        or "without power" in search_lower
-    ):
-        query = query.filter(Plot.electricity.is_(False))
-        search_lower = re.sub(
-            r"\b(?:no|without)\s+(?:electricity|electric|power)\b", "", search_lower
-        )
-    elif (
-        "electricity" in search_lower
-        or "electric" in search_lower
-        or "power" in search_lower
-    ):
-        query = query.filter(Plot.electricity.is_(True))
-        search_lower = re.sub(r"\b(?:electricity|electric|power)\b", "", search_lower)
-
-    # Sewer
-    if "no sewer" in search_lower or "without sewer" in search_lower:
-        query = query.filter(Plot.sewer.is_(False))
-        search_lower = re.sub(r"\b(?:no|without)\s+sewer\b", "", search_lower)
-    elif "sewer" in search_lower or "sewage" in search_lower:
-        query = query.filter(Plot.sewer.is_(True))
-        search_lower = re.sub(r"\b(?:sewer|sewage)\b", "", search_lower)
-
-    # 3. Parse Price expressions
-    between_match = re.search(
-        r"between\s+(\d+)\s*(k)?\s+and\s+(\d+)\s*(k)?",
-        search_lower,
-    )
-    if between_match:
-        min_price = int(between_match.group(1))
-        max_price = int(between_match.group(3))
-        if between_match.group(2) == "k":
-            min_price *= 1000
-        if between_match.group(4) == "k":
-            max_price *= 1000
-        query = query.filter(Plot.price >= min_price, Plot.price <= max_price)
-        search_lower = search_lower.replace(between_match.group(0), "")
-
-    # Example: "under 50k", "below 50k", "less than 50k"
-    max_match = re.search(
-        r"(under|below|less than)\s+(\d+)\s*(k)?",
-        search_lower,
-    )
-    if max_match:
-        max_price = int(max_match.group(2))
-        if max_match.group(3) == "k":
-            max_price *= 1000
-        query = query.filter(Plot.price <= max_price)
-        search_lower = search_lower.replace(max_match.group(0), "")
-
-    # Example: "above 30k", "over 30k", "greater than 30k", "more than 30k"
-    min_match = re.search(
-        r"(above|over|greater than|more than)\s+(\d+)\s*(k)?",
-        search_lower,
-    )
-    if min_match:
-        min_price = int(min_match.group(2))
-        if min_match.group(3) == "k":
-            min_price *= 1000
-        query = query.filter(Plot.price >= min_price)
-        search_lower = search_lower.replace(min_match.group(0), "")
-
-    # Example: standalone price like "100k" or "85000" (budget limit)
-    standalone_price_match = re.search(
-        r"\b(\d+)\s*(k)\b|\b(\d{4,})\b",
-        search_lower,
-    )
-    if standalone_price_match:
-        if standalone_price_match.group(1):
-            max_price = int(standalone_price_match.group(1)) * 1000
-        else:
-            max_price = int(standalone_price_match.group(3))
-        query = query.filter(Plot.price <= max_price)
-        search_lower = search_lower.replace(standalone_price_match.group(0), "")
-
-    # 4. Keyword search on remaining words
-    filler_words = {
-        "land",
-        "plot",
-        "plots",
-        "for",
-        "in",
-        "near",
-        "at",
-        "show",
-        "me",
-        "find",
-        "looking",
-        "want",
-        "with",
-        "than",
-        "like",
-        "and",
-        "or",
-        "a",
-        "an",
-        "the",
-        "to",
-        "has",
-        "have",
-        "without",
-    }
-
-    keywords = [
-        word
-        for word in search_lower.split()
-        if word not in filler_words and not word.replace("k", "").isdigit()
-    ]
-
-    for word in keywords:
-        query = query.filter(
-            or_(
-                Plot.city.ilike(f"%{word}%"),
-                Plot.state.ilike(f"%{word}%"),
-                Plot.title.ilike(f"%{word}%"),
-                Plot.zoning_type.ilike(f"%{word}%"),
-                Plot.ideal_for.ilike(f"%{word}%"),
-            )
-        )
-
-    return query
 
 
 class PlotImage(Base):

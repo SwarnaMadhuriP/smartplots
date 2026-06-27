@@ -2,25 +2,55 @@ from google.adk.agents import Agent
 from google.adk.tools import ToolContext
 from google.adk.agents.callback_context import CallbackContext
 from app.database import SessionLocal
-from app.models import Plot, DocumentChunk, apply_plot_search_filters
+from app.models import Plot, DocumentChunk
+from app.search import PlotSearchFilters, search_plots
 from app.portfolio_agents import get_genai_client
+from app.analysis_tools import (
+    build_catalog_analysis,
+    calculate_investment_metrics,
+    calculate_location_metrics,
+    calculate_risk_metrics,
+)
 
 
 def search_and_score_plots(
-    query: str,
+    query: str = "",
+    keyword: str | None = None,
     city: str | None = None,
+    state: str | None = None,
+    min_price: float | None = None,
     max_price: float | None = None,
-    zoning: str | None = None,
+    min_area: float | None = None,
+    max_area: float | None = None,
+    zoning_type: str | None = None,
+    listing_type: str | None = None,
+    status: str | None = None,
+    road_access: bool | None = None,
+    water_access: bool | None = None,
+    electricity: bool | None = None,
+    sewer: bool | None = None,
     purpose: str | None = None,
     tool_context: ToolContext | None = None,
 ) -> dict:
-    """Searches for land plots in the database and ranks them based on user preferences.
+    """Searches for land plots with deterministic filters and ranks the result.
 
     Args:
-        query: General keywords to search for in title, description, or ideal uses.
+        query: Original user query for state/debugging. Do not pass raw natural language
+            here as a database filter.
+        keyword: Lightweight keyword search across plot text fields.
         city: Optional city name to filter by (e.g. Austin, Dallas, Houston).
+        state: Optional state abbreviation or name.
+        min_price: Optional minimum price.
         max_price: Optional maximum price budget.
-        zoning: Optional zoning type (e.g. residential, commercial, agricultural).
+        min_area: Optional minimum acreage.
+        max_area: Optional maximum acreage.
+        zoning_type: Optional zoning type (e.g. residential, commercial, agricultural).
+        listing_type: Optional listing type.
+        status: Optional listing status.
+        road_access: Optional road access filter.
+        water_access: Optional water access filter.
+        electricity: Optional electricity filter.
+        sewer: Optional sewer filter.
         purpose: Optional purpose of land use (e.g. camping, vacation, farming).
 
     Returns:
@@ -28,25 +58,31 @@ def search_and_score_plots(
     """
     db = SessionLocal()
     try:
-        db_query = db.query(Plot)
-
-        # Apply structured filters if provided
-        if city:
-            db_query = db_query.filter(Plot.city.ilike(f"%{city}%"))
-        if max_price:
-            db_query = db_query.filter(Plot.price <= max_price)
-        if zoning:
-            db_query = db_query.filter(Plot.zoning_type.ilike(f"%{zoning}%"))
-
-        # Keyword and criteria search parsing using shared helper
-        if query:
-            db_query = apply_plot_search_filters(db_query, query)
-
-        plots_from_db = db_query.all()
+        filters = PlotSearchFilters(
+            keyword=keyword,
+            city=city,
+            state=state,
+            min_price=min_price,
+            max_price=max_price,
+            min_area=min_area,
+            max_area=max_area,
+            zoning_type=zoning_type,
+            listing_type=listing_type,
+            status=status,
+            road_access=road_access,
+            water_access=water_access,
+            electricity=electricity,
+            sewer=sewer,
+        )
+        plots_from_db = search_plots(db, filters)
         ranked_plots = []
+        analysis_by_plot = {}
 
         for plot in plots_from_db:
             d = plot.to_json_dict()
+            investment = calculate_investment_metrics(plot, max_budget=max_price)
+            risk = calculate_risk_metrics(plot)
+            location = calculate_location_metrics(plot, purpose=purpose)
 
             # Apply conversational purpose boost if needed
             if purpose and purpose.lower() == "camping":
@@ -65,8 +101,29 @@ def search_and_score_plots(
                     "state": plot.state,
                     "rawPrice": plot.price,
                     "rawAcres": plot.area_acres,
+                    "createdAt": (
+                        plot.created_at.isoformat() if plot.created_at else None
+                    ),
+                    "aiInvestmentScore": investment["investment_score"],
+                    "investmentScore": investment["investment_score"],
+                    "matchScore": max(
+                        d["matchScore"],
+                        round(
+                            (
+                                investment["investment_score"]
+                                + (10 - risk["overall_risk_score"])
+                                + location["location_score"]
+                            )
+                            / 3
+                        ),
+                    ),
                 }
             )
+            analysis_by_plot[plot.id] = {
+                "investment": investment,
+                "risk": risk,
+                "location": location,
+            }
             ranked_plots.append(d)
 
         # Sort by match score descending
@@ -74,10 +131,22 @@ def search_and_score_plots(
 
         if tool_context:
             tool_context.state["ranked_plots"] = ranked_plots
+            tool_context.state["deterministic_analysis"] = analysis_by_plot
             tool_context.state["filters"] = {
+                "keyword": keyword,
                 "city": city,
+                "state": state,
+                "min_price": min_price,
                 "max_price": max_price,
-                "zoning": zoning,
+                "min_area": min_area,
+                "max_area": max_area,
+                "zoning_type": zoning_type,
+                "listing_type": listing_type,
+                "status": status,
+                "road_access": road_access,
+                "water_access": water_access,
+                "electricity": electricity,
+                "sewer": sewer,
                 "purpose": purpose,
             }
             tool_context.state["query"] = query
@@ -85,6 +154,82 @@ def search_and_score_plots(
         return {"status": "success", "count": len(ranked_plots)}
     finally:
         db.close()
+
+
+def _ranked_plot_ids_from_state(tool_context: ToolContext | None) -> list[int]:
+    if not tool_context:
+        return []
+    ranked_plots = tool_context.state.get("ranked_plots", [])
+    return [
+        int(plot["id"])
+        for plot in ranked_plots
+        if isinstance(plot, dict) and plot.get("id") is not None
+    ]
+
+
+def _plots_by_ids(plot_ids: list[int]) -> list[Plot]:
+    if not plot_ids:
+        return []
+    db = SessionLocal()
+    try:
+        plots = db.query(Plot).filter(Plot.id.in_(plot_ids)).all()
+        order = {plot_id: index for index, plot_id in enumerate(plot_ids)}
+        return sorted(plots, key=lambda plot: order.get(plot.id, len(order)))
+    finally:
+        db.close()
+
+
+def calculate_investment_analysis(
+    tool_context: ToolContext | None = None,
+) -> dict:
+    """Calculates deterministic investment metrics for the current ranked plots."""
+    plot_ids = _ranked_plot_ids_from_state(tool_context)
+    plots = _plots_by_ids(plot_ids)
+    filters = tool_context.state.get("filters", {}) if tool_context else {}
+    max_budget = filters.get("max_price") if isinstance(filters, dict) else None
+
+    metrics = [
+        calculate_investment_metrics(plot, max_budget=max_budget) for plot in plots
+    ]
+    if tool_context:
+        tool_context.state["investment_metrics"] = metrics
+    return {"status": "success", "investment_metrics": metrics}
+
+
+def calculate_risk_analysis(tool_context: ToolContext | None = None) -> dict:
+    """Calculates deterministic risk metrics for the current ranked plots."""
+    plots = _plots_by_ids(_ranked_plot_ids_from_state(tool_context))
+    metrics = [calculate_risk_metrics(plot) for plot in plots]
+    if tool_context:
+        tool_context.state["risk_metrics"] = metrics
+    return {"status": "success", "risk_metrics": metrics}
+
+
+def calculate_location_analysis(tool_context: ToolContext | None = None) -> dict:
+    """Calculates deterministic location metrics for the current ranked plots."""
+    plots = _plots_by_ids(_ranked_plot_ids_from_state(tool_context))
+    filters = tool_context.state.get("filters", {}) if tool_context else {}
+    purpose = filters.get("purpose") if isinstance(filters, dict) else None
+    metrics = [calculate_location_metrics(plot, purpose=purpose) for plot in plots]
+    if tool_context:
+        tool_context.state["location_metrics"] = metrics
+    return {"status": "success", "location_metrics": metrics}
+
+
+def calculate_catalog_analysis(tool_context: ToolContext | None = None) -> dict:
+    """Builds a combined deterministic analysis bundle for ranked plots."""
+    plots = _plots_by_ids(_ranked_plot_ids_from_state(tool_context))
+    filters = tool_context.state.get("filters", {}) if tool_context else {}
+    max_budget = filters.get("max_price") if isinstance(filters, dict) else None
+    purpose = filters.get("purpose") if isinstance(filters, dict) else None
+    analysis = build_catalog_analysis(
+        plots,
+        max_budget=max_budget,
+        purpose=purpose,
+    )
+    if tool_context:
+        tool_context.state["combined_analysis"] = analysis
+    return {"status": "success", "combined_analysis": analysis}
 
 
 async def init_planner_state(callback_context: CallbackContext) -> None:
@@ -102,14 +247,28 @@ async def init_planner_state(callback_context: CallbackContext) -> None:
         callback_context.state["location_analysis"] = "N/A"
     if "document_analysis" not in callback_context.state:
         callback_context.state["document_analysis"] = "N/A"
+    if "deterministic_analysis" not in callback_context.state:
+        callback_context.state["deterministic_analysis"] = {}
+    if "investment_metrics" not in callback_context.state:
+        callback_context.state["investment_metrics"] = []
+    if "risk_metrics" not in callback_context.state:
+        callback_context.state["risk_metrics"] = []
+    if "location_metrics" not in callback_context.state:
+        callback_context.state["location_metrics"] = []
 
 
 search_agent = Agent(
     name="search_agent",
     model="gemini-2.5-flash",
     instruction="""You are the Search Agent. Your goal is to find land plots matching the user's query.
-    Call the search_and_score_plots tool with the appropriate filters (query, city, max_price, zoning, purpose) extracted from the user prompt.
-    Do not summarize the plots, simply execute the tool. The results will be processed by other agents.""",
+    Extract structured filters from the user prompt, then call search_and_score_plots.
+    Use only supported deterministic filters: keyword, city, state, min_price, max_price,
+    min_area, max_area, zoning_type, listing_type, status, road_access, water_access,
+    electricity, sewer, and purpose.
+    Do not pass full raw natural-language requests as keyword. Use keyword only for a
+    concise searchable term such as "lake", "downtown", "camping", or "Austin".
+    Do not query the database directly or invent filtering logic. Do not summarize the plots;
+    simply execute the tool. The results will be processed by other agents.""",
     tools=[search_and_score_plots],
     before_agent_callback=init_planner_state,
 )
@@ -119,8 +278,12 @@ investment_agent = Agent(
     model="gemini-2.5-flash",
     instruction="""You are the Investment Agent. Review the land plots retrieved by the Search Agent.
     Retrieved Plots: {ranked_plots}
+    Current Investment Metrics: {investment_metrics}
     
-    Calculate investment projections, price per acre, and score comparisons. Highlight which plots offer the best financial value, return on investment (appreciation), and overall investment rating relative to the budget limit of: {filters}.""",
+    First call calculate_investment_analysis. Then explain the returned deterministic metrics.
+    Do not calculate or invent scores. Explain price per acre, budget fit, utility score,
+    development readiness, investment score, pros, and cons relative to: {filters}.""",
+    tools=[calculate_investment_analysis],
     output_key="investment_analysis",
 )
 
@@ -129,12 +292,12 @@ risk_agent = Agent(
     model="gemini-2.5-flash",
     instruction="""You are the Risk Agent. Review the land plots retrieved by the Search Agent.
     Retrieved Plots: {ranked_plots}
+    Current Risk Metrics: {risk_metrics}
     
-    Evaluate potential risks for each plot including:
-    - Utility access limits (electricity, sewer, water access)
-    - Zoning restrictions
-    - Flooding, environmental, or other site-specific risk notes.
-    Summarize critical concerns and things the buyer must verify during due diligence.""",
+    First call calculate_risk_analysis. Then explain the returned deterministic metrics.
+    Do not calculate or invent risk scores. Explain infrastructure risk, utility risk,
+    zoning risk, overall risk score, and mitigation suggestions.""",
+    tools=[calculate_risk_analysis],
     output_key="risk_analysis",
 )
 
@@ -143,8 +306,12 @@ location_agent = Agent(
     model="gemini-2.5-flash",
     instruction="""You are the Location Agent. Review the land plots retrieved by the Search Agent.
     Retrieved Plots: {ranked_plots}
+    Current Location Metrics: {location_metrics}
     
-    Analyze the locations (cities, states, neighborhoods) and proximity advantages. Discuss road access, landmarks, regional growth trends, and environmental settings (e.g. lakeside retreats, downtown proximity).""",
+    First call calculate_location_analysis. Then explain the returned deterministic metrics.
+    Do not calculate or invent location scores. Explain location score, nearby landmark score,
+    accessibility, purpose suitability, and best use.""",
+    tools=[calculate_location_analysis],
     output_key="location_analysis",
 )
 
@@ -222,9 +389,10 @@ document_intelligence_agent = Agent(
     Analyze the retrieved chunks to identify:
     - Important insights, utility details, zoning permissions, HOA constraints, or flood risks.
     - Reference specific documents, citing their type, filename, and page number.
+    - Missing information that the documents do not answer.
     
     Deliver a concise summary of the document findings with citations. If no documents exist for a plot, state that.
-    Do not search plots or analyze structured databases; focus solely on the retrieved chunks.
+    Do not calculate investment, risk, or location scores. Do not search plots or analyze structured databases; focus solely on the retrieved chunks.
     """,
     output_key="document_analysis",
     tools=[retrieve_plot_documents],
@@ -243,6 +411,10 @@ recommendation_agent = Agent(
     - Risk Assessment: {risk_analysis}
     - Location Analysis: {location_analysis}
     - Document Analysis: {document_analysis}
+    
+    Combine the specialist analyses into a final recommendation with reasoning and trade-offs.
+    Do not perform new calculations or invent scores. Use only the retrieved plots, deterministic
+    metric explanations, and document evidence already provided by upstream agents.
     
     Create a polished, professional, and friendly response. Start by summarizing the overall suitability of the top matches. Then break down:
     1. 📈 **Investment Value & Financials** (based on Investment Agent output)

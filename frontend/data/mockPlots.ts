@@ -5,9 +5,13 @@ export type Plot = {
   image: string;
   location: string;
   price: string;
+  rawPrice?: number;
   acres: string;
+  rawAcres?: number;
   zone: string;
   matchScore: number;
+  investmentScore?: number;
+  aiInvestmentScore?: number;
   appreciation: string;
   rentalDemand: string;
   liquidity: string;
@@ -17,4 +21,5 @@ export type Plot = {
   highlights: string[];
   latitude: number;
   longitude: number;
+  createdAt?: string | null;
 };
