@@ -69,14 +69,13 @@ def test_location_metrics_use_landmarks_and_purpose() -> None:
     assert metrics["best_use"] == "Residential"
 
 
-def test_search_router_splits_normal_simple_and_full() -> None:
-    assert classify_search_query("Dallas") == SearchRoute.NORMAL_SEARCH
-    assert (
-        classify_search_query("Austin under 100k") == SearchRoute.SIMPLE_AGENTIC_SEARCH
-    )
+def test_search_router_splits_db_and_ai_search() -> None:
+    assert classify_search_query("") == SearchRoute.DB_SEARCH
+    assert classify_search_query("Dallas") == SearchRoute.DB_SEARCH
+    assert classify_search_query("Austin under 100k") == SearchRoute.AI_SEARCH
     assert (
         classify_search_query("recommend the best investment under 100k")
-        == SearchRoute.FULL_AGENTIC_SEARCH
+        == SearchRoute.AI_SEARCH
     )
 
 

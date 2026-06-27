@@ -9,6 +9,8 @@ from app.specialists import (
     location_agent,
     document_intelligence_agent,
     recommendation_agent,
+    ai_search_ranking_explainer_agent,
+    ai_search_agent,
 )
 
 # Handle GCP auth and environment variables gracefully
@@ -53,7 +55,16 @@ smartplots_orchestrator = SequentialAgent(
     ],
 )
 
+ai_search_orchestrator = SequentialAgent(
+    name="ai_search_orchestrator",
+    sub_agents=[
+        ai_search_agent,
+        ai_search_ranking_explainer_agent,
+    ],
+)
+
 root_agent = smartplots_orchestrator
+ai_search_root_agent = ai_search_orchestrator
 
 app = App(
     root_agent=root_agent,

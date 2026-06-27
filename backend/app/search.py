@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Query, Session
@@ -26,6 +26,124 @@ class PlotSearchFilters:
     water_access: bool | None = None
     electricity: bool | None = None
     sewer: bool | None = None
+
+
+def _parse_number(value: str, suffix: str | None = None) -> float | None:
+    try:
+        number = float(value.replace(",", ""))
+    except ValueError:
+        return None
+
+    if suffix and suffix.lower() == "k":
+        return number * 1_000
+    if suffix and suffix.lower() == "m":
+        return number * 1_000_000
+    return number
+
+
+def extract_query_filters(query: str, filters: PlotSearchFilters) -> PlotSearchFilters:
+    """Extract common natural-language filters for DB fallback searches."""
+    text = query.strip().lower()
+    if not text:
+        return filters
+
+    extracted = False
+    next_filters = replace(filters)
+
+    max_price_match = re.search(
+        r"\b(?:under|below|less than|max(?:imum)?|budget(?: of)?)\s+\$?([\d,.]+)\s*([km])?\b",
+        text,
+    )
+    if next_filters.max_price is None and max_price_match:
+        max_price = _parse_number(max_price_match.group(1), max_price_match.group(2))
+        if max_price is not None:
+            next_filters.max_price = max_price
+            extracted = True
+
+    min_price_match = re.search(
+        r"\b(?:over|above|more than|min(?:imum)?)\s+\$?([\d,.]+)\s*([km])?\b",
+        text,
+    )
+    if next_filters.min_price is None and min_price_match:
+        min_price = _parse_number(min_price_match.group(1), min_price_match.group(2))
+        if min_price is not None:
+            next_filters.min_price = min_price
+            extracted = True
+
+    max_area_match = re.search(
+        r"\b(?:under|below|less than|max(?:imum)?)\s+([\d,.]+)\s*(?:acres|acre)\b",
+        text,
+    )
+    if next_filters.max_area is None and max_area_match:
+        max_area = _parse_number(max_area_match.group(1))
+        if max_area is not None:
+            next_filters.max_area = max_area
+            extracted = True
+
+    min_area_match = re.search(
+        r"\b(?:over|above|more than|min(?:imum)?)\s+([\d,.]+)\s*(?:acres|acre)\b",
+        text,
+    )
+    if next_filters.min_area is None and min_area_match:
+        min_area = _parse_number(min_area_match.group(1))
+        if min_area is not None:
+            next_filters.min_area = min_area
+            extracted = True
+
+    utility_terms = {
+        "road_access": ("road", "road access"),
+        "water_access": ("water", "water access"),
+        "electricity": ("electricity", "power"),
+        "sewer": ("sewer",),
+    }
+    for field_name, terms in utility_terms.items():
+        if getattr(next_filters, field_name) is not None:
+            continue
+
+        if any(f"without {term}" in text for term in terms):
+            setattr(next_filters, field_name, False)
+            extracted = True
+        elif any(term in text for term in terms):
+            setattr(next_filters, field_name, True)
+            extracted = True
+
+    zoning_terms = ("residential", "commercial", "agricultural")
+    if next_filters.zoning_type is None:
+        for zoning_type in zoning_terms:
+            if zoning_type in text:
+                next_filters.zoning_type = zoning_type.title()
+                extracted = True
+                break
+
+    city_match = re.search(
+        r"\bin\s+([a-z][a-z\s]+?)(?=\s+(?:with|without|under|over|above|below|less|more|between|near|for|and|\d)|$)",
+        text,
+    )
+    if next_filters.city is None and city_match:
+        city_text = city_match.group(1).strip()
+        city_words = set(re.findall(r"[a-z]+", city_text))
+        non_city_words = {
+            "area",
+            "zone",
+            "zoned",
+            "zoning",
+            "land",
+            "plot",
+            "plots",
+            "property",
+            "properties",
+            "residential",
+            "commercial",
+            "agricultural",
+        }
+        if city_text and not city_words.intersection(non_city_words):
+            next_filters.city = city_text.title()
+            extracted = True
+
+    if extracted:
+        next_filters.keyword = None
+
+    return next_filters
 
 
 def apply_plot_filters(query: Query, filters: PlotSearchFilters) -> Query:

@@ -32,31 +32,19 @@ def search_and_score_plots(
     purpose: str | None = None,
     tool_context: ToolContext | None = None,
 ) -> dict:
-    """Searches for land plots with deterministic filters and ranks the result.
+    """Searches for land plots using deterministic filters and ranks results for AI Search.
 
-    Args:
-        query: Original user query for state/debugging. Do not pass raw natural language
-            here as a database filter.
-        keyword: Lightweight keyword search across plot text fields.
-        city: Optional city name to filter by (e.g. Austin, Dallas, Houston).
-        state: Optional state abbreviation or name.
-        min_price: Optional minimum price.
-        max_price: Optional maximum price budget.
-        min_area: Optional minimum acreage.
-        max_area: Optional maximum acreage.
-        zoning_type: Optional zoning type (e.g. residential, commercial, agricultural).
-        listing_type: Optional listing type.
-        status: Optional listing status.
-        road_access: Optional road access filter.
-        water_access: Optional water access filter.
-        electricity: Optional electricity filter.
-        sewer: Optional sewer filter.
-        purpose: Optional purpose of land use (e.g. camping, vacation, farming).
+    This function is intentionally lightweight:
+    - No investment analysis
+    - No risk analysis
+    - No location analysis
+    - No document intelligence
+    - No A2A
 
-    Returns:
-        A dict containing status and count of matched plots.
+    The LLM should only explain the ranking later. It should not calculate scores.
     """
     db = SessionLocal()
+
     try:
         filters = PlotSearchFilters(
             keyword=keyword,
@@ -74,27 +62,28 @@ def search_and_score_plots(
             electricity=electricity,
             sewer=sewer,
         )
+
         plots_from_db = search_plots(db, filters)
         ranked_plots = []
-        analysis_by_plot = {}
 
         for plot in plots_from_db:
             d = plot.to_json_dict()
-            investment = calculate_investment_metrics(plot, max_budget=max_price)
-            risk = calculate_risk_metrics(plot)
-            location = calculate_location_metrics(plot, purpose=purpose)
 
-            # Apply conversational purpose boost if needed
-            if purpose and purpose.lower() == "camping":
+            # Keep matchScore deterministic from plot.to_json_dict/search layer.
+            # Add small purpose-based boost only when the query has clear intent.
+            if purpose:
+                purpose_lower = purpose.lower().strip()
                 ideal_for = (plot.ideal_for or "").lower()
-                if "camping" in ideal_for:
-                    d["matchScore"] = min(10, d["matchScore"] + 1)
-                    if "Matches your camping preference" not in d["reasons"]:
-                        d["reasons"] = ["Matches your camping preference"] + d[
-                            "reasons"
-                        ][:2]
 
-            # Add specialists extra keys
+                if purpose_lower and purpose_lower in ideal_for:
+                    d["matchScore"] = min(10, int(d.get("matchScore", 0)) + 1)
+
+                    reason = f"Matches your {purpose_lower} preference"
+                    existing_reasons = d.get("reasons", [])
+
+                    if reason not in existing_reasons:
+                        d["reasons"] = [reason] + existing_reasons[:2]
+
             d.update(
                 {
                     "city": plot.city,
@@ -104,54 +93,54 @@ def search_and_score_plots(
                     "createdAt": (
                         plot.created_at.isoformat() if plot.created_at else None
                     ),
-                    "aiInvestmentScore": investment["investment_score"],
-                    "investmentScore": investment["investment_score"],
-                    "matchScore": max(
-                        d["matchScore"],
-                        round(
-                            (
-                                investment["investment_score"]
-                                + (10 - risk["overall_risk_score"])
-                                + location["location_score"]
-                            )
-                            / 3
-                        ),
-                    ),
                 }
             )
-            analysis_by_plot[plot.id] = {
-                "investment": investment,
-                "risk": risk,
-                "location": location,
-            }
+
             ranked_plots.append(d)
 
-        # Sort by match score descending
-        ranked_plots.sort(key=lambda p: p["matchScore"], reverse=True)
+        ranked_plots.sort(
+            key=lambda p: int(p.get("matchScore", 0)),
+            reverse=True,
+        )
+
+        active_filters = {
+            "keyword": keyword,
+            "city": city,
+            "state": state,
+            "min_price": min_price,
+            "max_price": max_price,
+            "min_area": min_area,
+            "max_area": max_area,
+            "zoning_type": zoning_type,
+            "listing_type": listing_type,
+            "status": status,
+            "road_access": road_access,
+            "water_access": water_access,
+            "electricity": electricity,
+            "sewer": sewer,
+            "purpose": purpose,
+        }
+
+        active_filters = {
+            key: value
+            for key, value in active_filters.items()
+            if value not in (None, "")
+        }
 
         if tool_context:
             tool_context.state["ranked_plots"] = ranked_plots
-            tool_context.state["deterministic_analysis"] = analysis_by_plot
-            tool_context.state["filters"] = {
-                "keyword": keyword,
-                "city": city,
-                "state": state,
-                "min_price": min_price,
-                "max_price": max_price,
-                "min_area": min_area,
-                "max_area": max_area,
-                "zoning_type": zoning_type,
-                "listing_type": listing_type,
-                "status": status,
-                "road_access": road_access,
-                "water_access": water_access,
-                "electricity": electricity,
-                "sewer": sewer,
-                "purpose": purpose,
-            }
+            tool_context.state["filters"] = active_filters
             tool_context.state["query"] = query
 
-        return {"status": "success", "count": len(ranked_plots)}
+            # Keep this key only for backward compatibility.
+            # AI Search should not depend on it.
+            tool_context.state["deterministic_analysis"] = {}
+
+        return {
+            "status": "success",
+            "count": len(ranked_plots),
+        }
+
     finally:
         db.close()
 
@@ -258,6 +247,22 @@ async def init_planner_state(callback_context: CallbackContext) -> None:
 
 
 search_agent = Agent(
+    name="search_agent",
+    model="gemini-2.5-flash",
+    instruction="""You are the Search Agent. Your goal is to find land plots matching the user's query.
+    Extract structured filters from the user prompt, then call search_and_score_plots.
+    Use only supported deterministic filters: keyword, city, state, min_price, max_price,
+    min_area, max_area, zoning_type, listing_type, status, road_access, water_access,
+    electricity, sewer, and purpose.
+    Do not pass full raw natural-language requests as keyword. Use keyword only for a
+    concise searchable term such as "lake", "downtown", "camping", or "Austin".
+    Do not query the database directly or invent filtering logic. Do not summarize the plots;
+    simply execute the tool. The results will be processed by other agents.""",
+    tools=[search_and_score_plots],
+    before_agent_callback=init_planner_state,
+)
+
+ai_search_agent = Agent(
     name="search_agent",
     model="gemini-2.5-flash",
     instruction="""You are the Search Agent. Your goal is to find land plots matching the user's query.
@@ -424,3 +429,20 @@ recommendation_agent = Agent(
     
     Conclude with a clear recommendation on next steps. Do not invent properties or parameters not present in the data.""",
 )
+
+
+ai_search_ranking_explainer_agent = Agent(
+    name="ai_search_ranking_explainer_agent",
+    model="gemini-2.5-flash",
+    instruction="""You are the AI Search Ranking Explainer Agent.
+    Your job is to:
+    - Read the retrieved plots: {ranked_plots}
+    - Read the search filters applied: {filters}
+    - Read the original user query: {query}
+    - Produce a concise search summary.
+    - Explain why the top plots matched the user query and filters based on their ranking.
+    - Do not calculate or invent scores (use only the provided matchScore).
+    - Do not invent any facts about the plots.
+    - Do not reference investment metrics/scores, risk analysis/scores, location analysis/scores, or documents/document intelligence. Rely only on the general plot characteristics and the user's criteria.""",
+)
+

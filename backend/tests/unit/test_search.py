@@ -1,4 +1,4 @@
-from app.search import PlotSearchFilters, apply_plot_filters
+from app.search import PlotSearchFilters, apply_plot_filters, extract_query_filters
 
 
 class FakeExpression:
@@ -75,3 +75,27 @@ def test_apply_plot_filters_uses_structured_filters(monkeypatch) -> None:
     assert "price <= 150000" in rendered
     assert "road_access is True" in rendered
     assert "lake" in rendered
+
+
+def test_extract_query_filters_handles_price_city_and_utilities() -> None:
+    filters = extract_query_filters(
+        "plots under 100k in Austin with water and electricity",
+        PlotSearchFilters(keyword="plots under 100k in Austin with water and electricity"),
+    )
+
+    assert filters.keyword is None
+    assert filters.max_price == 100_000
+    assert filters.city == "Austin"
+    assert filters.water_access is True
+    assert filters.electricity is True
+
+
+def test_extract_query_filters_treats_residential_area_as_zoning() -> None:
+    filters = extract_query_filters(
+        "can you show me plots in residential area",
+        PlotSearchFilters(keyword="can you show me plots in residential area"),
+    )
+
+    assert filters.keyword is None
+    assert filters.city is None
+    assert filters.zoning_type == "Residential"

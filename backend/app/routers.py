@@ -4,9 +4,8 @@ from enum import StrEnum
 
 
 class SearchRoute(StrEnum):
-    NORMAL_SEARCH = "normal_search"
-    SIMPLE_AGENTIC_SEARCH = "simple_agentic_search"
-    FULL_AGENTIC_SEARCH = "full_agentic_search"
+    DB_SEARCH = "db_search"
+    AI_SEARCH = "ai_search"
 
 
 class QuestionRoute(StrEnum):
@@ -20,11 +19,11 @@ class QuestionRoute(StrEnum):
 def classify_search_query(query: str) -> SearchRoute:
     text = query.strip().lower()
     if not text:
-        return SearchRoute.NORMAL_SEARCH
+        return SearchRoute.DB_SEARCH
 
     words = text.split()
     has_numbers = any(char.isdigit() for char in text)
-    filter_keywords = {
+    ai_keywords = {
         "under",
         "over",
         "above",
@@ -51,8 +50,6 @@ def classify_search_query(query: str) -> SearchRoute:
         "electricity",
         "sewer",
         "power",
-    }
-    full_agentic_keywords = {
         "recommend",
         "best",
         "why",
@@ -77,15 +74,13 @@ def classify_search_query(query: str) -> SearchRoute:
         "due diligence",
     }
 
-    if any(keyword in text for keyword in full_agentic_keywords):
-        return SearchRoute.FULL_AGENTIC_SEARCH
     if (
         len(words) <= 2
         and not has_numbers
-        and not any(keyword in text for keyword in filter_keywords)
+        and not any(keyword in text for keyword in ai_keywords)
     ):
-        return SearchRoute.NORMAL_SEARCH
-    return SearchRoute.SIMPLE_AGENTIC_SEARCH
+        return SearchRoute.DB_SEARCH
+    return SearchRoute.AI_SEARCH
 
 
 def classify_question(question: str) -> QuestionRoute:
