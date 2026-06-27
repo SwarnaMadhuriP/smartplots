@@ -1,6 +1,5 @@
 import Image from 'next/image';
-import Link from 'next/link';
-import { Bookmark, MapPin, Sparkles } from 'lucide-react';
+import { Heart, MapPin } from 'lucide-react';
 import { Plot } from '@/data/mockPlots';
 
 type Props = {
@@ -109,21 +108,6 @@ export default function PlotCard({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onToggleWatchlist();
-            }}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E7D3CC] bg-white transition hover:bg-[#F3E6E1]"
-          >
-            <Bookmark
-              size={20}
-              className={
-                isSaved ? 'fill-[#B8644C] text-[#B8644C]' : 'text-[#B0897A]'
-              }
-            />
-          </button>
-
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
               onToggleCompare?.();
             }}
             className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
@@ -135,14 +119,23 @@ export default function PlotCard({
             {isCompared ? 'Added to Compare' : 'Compare'}
           </button>
 
-          <Link
-            href={`/insights`}
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center gap-1.5 rounded-full border border-[#E7D3CC] bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-[#F3E6E1]"
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleWatchlist();
+            }}
+            className={`flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-medium transition ${
+              isSaved
+                ? 'border-[#C7745A] bg-[#F3E6E1] text-[#C7745A]'
+                : 'border-[#E7D3CC] bg-white text-slate-600 hover:bg-[#F3E6E1]'
+            }`}
           >
-            <Sparkles size={14} className="text-[#C7745A]" />
-            Ask SmartPlots
-          </Link>
+            <Heart
+              size={15}
+              className={isSaved ? 'fill-[#C7745A]' : undefined}
+            />
+            {isSaved ? 'Saved' : 'Save'}
+          </button>
         </div>
       </div>
     </div>
