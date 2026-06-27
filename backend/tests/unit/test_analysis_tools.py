@@ -10,6 +10,7 @@ from app.routers import (
     SearchRoute,
     classify_question,
     classify_search_query,
+    select_ask_specialists,
 )
 
 
@@ -84,3 +85,19 @@ def test_question_router_routes_specialists() -> None:
     assert classify_question("What flood risks exist?") == QuestionRoute.RISK
     assert classify_question("What is nearby?") == QuestionRoute.LOCATION
     assert classify_question("What does the brochure say?") == QuestionRoute.DOCUMENT
+
+
+def test_ask_specialist_selection_follows_locked_architecture() -> None:
+    assert select_ask_specialists("What does the brochure say?") == []
+    assert select_ask_specialists("What are the risks?") == [QuestionRoute.RISK]
+    assert select_ask_specialists("Is this good for Airbnb?") == [
+        QuestionRoute.LOCATION
+    ]
+    assert select_ask_specialists("Should I buy this plot?") == [
+        QuestionRoute.INVESTMENT,
+        QuestionRoute.RISK,
+    ]
+    assert select_ask_specialists("Is this better for building a home or Airbnb?") == [
+        QuestionRoute.LOCATION,
+        QuestionRoute.INVESTMENT,
+    ]

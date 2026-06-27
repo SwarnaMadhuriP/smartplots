@@ -9,9 +9,8 @@ from .sorting import SortOption, sort_plot_dicts
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import Any, cast as type_cast
-from app.prompts import RAG_ASK_PROMPT
+from app.prompts import ASK_SMARTPLOTS_PROMPT
 from app.analysis_tools import (
-    build_plot_analysis,
     calculate_investment_metrics,
     calculate_location_metrics,
     calculate_risk_metrics,
@@ -21,6 +20,7 @@ from app.routers import (
     SearchRoute,
     classify_question,
     classify_search_query,
+    select_ask_specialists,
 )
 from google import genai
 from dotenv import load_dotenv
@@ -169,60 +169,139 @@ class AskRequest(BaseModel):
     question: str
 
 
-def _format_metric_answer_prompt(
+def _property_context(plot: Plot) -> dict[str, Any]:
+    return {
+        "id": plot.id,
+        "title": plot.title,
+        "description": plot.description,
+        "location": f"{plot.city}, {plot.state}",
+        "price": plot.price,
+        "area_acres": plot.area_acres,
+        "zoning_type": plot.zoning_type,
+        "utilities": {
+            "road_access": plot.road_access,
+            "water_access": plot.water_access,
+            "electricity": plot.electricity,
+            "sewer": plot.sewer,
+        },
+        "nearby_landmarks": plot.nearby_landmarks,
+        "ideal_for": plot.ideal_for,
+        "risk_notes": plot.risk_notes,
+    }
+
+
+def _run_ask_specialists(
     plot: Plot,
     question: str,
-    route: QuestionRoute,
-    analysis: dict[str, Any],
-) -> str:
-    return f"""
-You are SmartPlots AI. Answer the user's question using only the plot data and
-deterministic SmartPlots analysis below.
+    specialists: list[QuestionRoute],
+) -> dict[str, Any]:
+    analysis: dict[str, Any] = {}
+    purpose = question if QuestionRoute.LOCATION in specialists else None
 
-Rules:
-- Do not calculate new scores.
-- Do not invent facts or use outside knowledge.
-- Explain the provided metrics in concise, user-friendly language.
-- If the metric bundle does not contain enough information, say what is missing.
+    for specialist in specialists:
+        if specialist == QuestionRoute.INVESTMENT:
+            analysis["investment"] = calculate_investment_metrics(plot)
+        elif specialist == QuestionRoute.RISK:
+            analysis["risk"] = calculate_risk_metrics(plot)
+        elif specialist == QuestionRoute.LOCATION:
+            analysis["location"] = calculate_location_metrics(plot, purpose=purpose)
 
-Question route: {route.value}
-User question: {question}
-
-Plot:
-- ID: {plot.id}
-- Title: {plot.title}
-- Location: {plot.city}, {plot.state}
-- Price: ${plot.price:,.0f}
-- Area: {plot.area_acres} acres
-- Zoning: {plot.zoning_type or "N/A"}
-- Road access: {"Yes" if plot.road_access else "No"}
-- Water access: {"Yes" if plot.water_access else "No"}
-- Electricity: {"Yes" if plot.electricity else "No"}
-- Sewer: {"Yes" if plot.sewer else "No"}
-- Ideal for: {plot.ideal_for or "N/A"}
-- Risk notes: {plot.risk_notes or "N/A"}
-
-Deterministic analysis:
-{analysis}
-"""
+    return analysis
 
 
-def _answer_metric_question(plot: Plot, question: str, route: QuestionRoute) -> str:
-    if route == QuestionRoute.INVESTMENT:
-        analysis = {"investment": calculate_investment_metrics(plot)}
-    elif route == QuestionRoute.RISK:
-        analysis = {"risk": calculate_risk_metrics(plot)}
-    elif route == QuestionRoute.LOCATION:
-        analysis = {"location": calculate_location_metrics(plot)}
-    else:
-        analysis = build_plot_analysis(plot)
+def _source_references(chunks: list[DocumentChunk]) -> list[dict[str, Any]]:
+    sources = []
+    seen = set()
+    for chunk in chunks:
+        filename = chunk.document.filename if chunk.document else "unknown"
+        key = (filename, chunk.page_number)
 
+        if key in seen:
+            continue
+
+        seen.add(key)
+        text = type_cast(str, chunk.chunk_text) if chunk.chunk_text else ""
+        excerpt = text[:200] + "..." if len(text) > 200 else text
+        sources.append(
+            {
+                "filename": filename,
+                "page": chunk.page_number,
+                "excerpt": excerpt,
+            }
+        )
+
+    return sources
+
+
+def _document_context_from_chunks(chunks: list[DocumentChunk]) -> str:
+    if not chunks:
+        return "No uploaded document evidence was retrieved for this question."
+
+    context_parts = []
+    for chunk in chunks:
+        filename = chunk.document.filename if chunk.document else "unknown"
+        page = f" (page {chunk.page_number})" if chunk.page_number else ""
+        context_parts.append(f"[{filename}{page}]\n{chunk.chunk_text}")
+    return "\n\n---\n\n".join(context_parts)
+
+
+def _retrieve_document_evidence(
+    plot_id: int,
+    question: str,
+    db: Session,
+) -> list[DocumentChunk]:
     from google.genai import types
+    from pgvector.sqlalchemy import Vector
+    from sqlalchemy import cast
+
+    try:
+        embed_response = get_genai_client().models.embed_content(
+            model="gemini-embedding-2",
+            contents=question,
+            config=types.EmbedContentConfig(output_dimensionality=768),
+        )
+    except Exception:
+        return []
+
+    if not embed_response.embeddings:
+        return []
+
+    q_vector = embed_response.embeddings[0].values
+    return (
+        db.query(DocumentChunk)
+        .filter(DocumentChunk.plot_id == plot_id)
+        .order_by(DocumentChunk.embedding.cosine_distance(cast(q_vector, Vector(768))))
+        .limit(5)
+        .all()
+    )
+
+
+def _compose_ask_answer(
+    question: str,
+    route: QuestionRoute,
+    plot: Plot,
+    chunks: list[DocumentChunk],
+    specialists: list[QuestionRoute],
+    specialist_analysis: dict[str, Any],
+) -> str:
+    from google.genai import types
+
+    prompt = ASK_SMARTPLOTS_PROMPT.format(
+        question=question,
+        route=route.value,
+        selected_specialists=json.dumps(
+            [specialist.value for specialist in specialists],
+            indent=2,
+        ),
+        property_context=json.dumps(_property_context(plot), indent=2),
+        document_context=_document_context_from_chunks(chunks),
+        specialist_context=json.dumps(specialist_analysis, indent=2),
+    )
 
     try:
         response = get_genai_client().models.generate_content(
             model="gemini-2.5-flash",
-            contents=_format_metric_answer_prompt(plot, question, route, analysis),
+            contents=prompt,
             config=types.GenerateContentConfig(temperature=0.1),
         )
         return response.text or "No answer generated."
@@ -232,8 +311,7 @@ def _answer_metric_question(plot: Plot, question: str, route: QuestionRoute) -> 
 
 @app.post("/plots/{plot_id}/ask")
 def ask_about_plot(plot_id: int, request: AskRequest, db: Session = Depends(get_db)):
-    """RAG-powered Q&A: embeds the question, retrieves relevant document chunks,
-    and asks Gemini to answer grounded in those chunks."""
+    """Ask SmartPlots: property context, documents, up to two specialists, composer."""
     plot = db.query(Plot).filter(Plot.id == plot_id).first()
     if not plot:
         raise HTTPException(status_code=404, detail="Plot not found")
@@ -243,110 +321,24 @@ def ask_about_plot(plot_id: int, request: AskRequest, db: Session = Depends(get_
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
     question_route = classify_question(question)
-    if question_route != QuestionRoute.DOCUMENT:
-        return {
-            "answer": _answer_metric_question(plot, question, question_route),
-            "sources": [],
-            "has_documents": False,
-            "route": question_route.value,
-        }
-
-    genai_client = get_genai_client()
-
-    # 1. Embed the question
-    from google.genai import types
-
-    embed_response = genai_client.models.embed_content(
-        model="gemini-embedding-2",
-        contents=question,
-        config=types.EmbedContentConfig(output_dimensionality=768),
-    )
-    if embed_response.embeddings and len(embed_response.embeddings) > 0:
-        q_vector = embed_response.embeddings[0].values
-    else:
-        raise HTTPException(status_code=500, detail="Failed to embed question")
-
-    # 2. Retrieve top-5 relevant chunks for this plot via cosine distance
-    from pgvector.sqlalchemy import Vector
-    from sqlalchemy import cast
-
-    chunks: list[DocumentChunk] = (
-        db.query(DocumentChunk)
-        .filter(DocumentChunk.plot_id == plot_id)
-        .order_by(DocumentChunk.embedding.cosine_distance(cast(q_vector, Vector(768))))
-        .limit(5)
-        .all()
-    )
-
-    # 3. Build context string from retrieved chunks
-    has_docs = len(chunks) > 0
-    if has_docs:
-        context_parts = []
-        for chunk in chunks:
-            filename = chunk.document.filename if chunk.document else "unknown"
-            page = f" (page {chunk.page_number})" if chunk.page_number else ""
-            context_parts.append(f"[{filename}{page}]\n{chunk.chunk_text}")
-        context = "\n\n---\n\n".join(context_parts)
-    else:
-        context = "No uploaded documents are available for this plot. Answer from plot data only."
-
-    # 4. Build prompt and call Gemini
-    prompt = RAG_ASK_PROMPT.format(
+    chunks = _retrieve_document_evidence(plot_id, question, db)
+    specialists = select_ask_specialists(question)
+    specialist_analysis = _run_ask_specialists(plot, question, specialists)
+    answer = _compose_ask_answer(
         question=question,
-        title=plot.title,
-        city=plot.city,
-        state=plot.state,
-        price=plot.price,
-        area=plot.area_acres,
-        zoning=plot.zoning_type or "N/A",
-        road="Yes" if plot.road_access else "No",
-        water="Yes" if plot.water_access else "No",
-        electricity="Yes" if plot.electricity else "No",
-        sewer="Yes" if plot.sewer else "No",
-        ideal_for=plot.ideal_for or "N/A",
-        risk_notes=plot.risk_notes or "N/A",
-        context=context,
+        route=question_route,
+        plot=plot,
+        chunks=chunks,
+        specialists=specialists,
+        specialist_analysis=specialist_analysis,
     )
-
-    try:
-        response = genai_client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(temperature=0.1),
-        )
-        answer = response.text or "No answer generated."
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-    # 5. Build source references
-    sources = []
-    if has_docs:
-        seen = set()
-        for chunk in chunks:
-            filename = chunk.document.filename if chunk.document else "unknown"
-            key = (filename, chunk.page_number)
-
-            if key in seen:
-                continue
-
-            seen.add(key)
-
-            text = type_cast(str, chunk.chunk_text) if chunk.chunk_text else ""
-            excerpt = text[:200] + "..." if len(text) > 200 else text
-
-            sources.append(
-                {
-                    "filename": filename,
-                    "page": chunk.page_number,
-                    "excerpt": excerpt,
-                }
-            )
 
     return {
         "answer": answer,
-        "sources": sources,
-        "has_documents": has_docs,
+        "sources": _source_references(chunks),
+        "has_documents": bool(chunks),
         "route": question_route.value,
+        "specialists": [specialist.value for specialist in specialists],
     }
 
 
