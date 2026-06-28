@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.agents.prompts import ASK_SMARTPLOTS_PROMPT
 from app.core.genai_client import get_genai_client
 from app.models import DocumentChunk, Plot
-from app.routers import QuestionRoute, classify_question, select_ask_specialists
+from app.services.routing_service import QuestionRoute, classify_question, select_ask_specialists
 from app.tools.analysis_tools import (
     calculate_investment_metrics,
     calculate_location_metrics,

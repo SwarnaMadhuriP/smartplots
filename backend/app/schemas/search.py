@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
-from app.search import PlotSearchFilters
-from app.sorting import SortOption
+from app.repositories.plot_search_repository import PlotSearchFilters
+from app.services.sorting_service import SortOption
 from typing import Any
 
 class SmartSearchRequest(BaseModel):
