@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import GoalSelector, { GoalKey } from './GoalSelector';
-import GoalForm, { GoalPreferences, GOAL_LABELS } from './GoalForm';
+import GoalForm, { GoalPreferences } from './GoalForm';
 import RecommendationCard, { AdvisorRecommendation } from './RecommendationCard';
 import FeedbackBar, { FeedbackOption } from './FeedbackBar';
 import { Sparkles, AlertCircle } from 'lucide-react';
@@ -241,6 +241,11 @@ export default function AdvisorShell({ initialGoal }: Props) {
 
   // Current step index for the breadcrumb
   const stepIndex = STEPS.indexOf(step === 'loading' ? 'inputs' : step);
+  const stepTextClass = (index: number) => {
+    if (stepIndex > index) return 'text-[#374151] font-medium';
+    if (stepIndex === index) return 'text-[#C7745A] font-bold';
+    return 'text-slate-300 font-normal';
+  };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -248,28 +253,18 @@ export default function AdvisorShell({ initialGoal }: Props) {
       {/* Step breadcrumb */}
       <div className="shrink-0 px-10 py-4 bg-[#F8F3ED] border-b border-[#E7D3CC]">
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Step 1 */}
-          <span className={`text-sm font-semibold transition-colors ${stepIndex === 0 ? 'text-[#C7745A]' : 'text-slate-400'}`}>
+          <span className={`text-sm transition-colors ${stepTextClass(0)}`}>
+            {stepIndex > 0 && <span aria-hidden="true" className="mr-1">✓</span>}
             Choose Goal
           </span>
 
-          {/* Goal name — shown as step 1.5 once a goal is selected */}
-          {goal && (
-            <>
-              <span className="text-[#D4BAB0] text-sm">›</span>
-              <span className={`text-sm font-semibold transition-colors ${stepIndex === 0 ? 'text-slate-400' : 'text-slate-700'}`}>
-                {GOAL_LABELS[goal]}
-              </span>
-            </>
-          )}
-
           <span className="text-[#D4BAB0] text-sm">›</span>
-          <span className={`text-sm font-semibold transition-colors ${stepIndex === 1 ? 'text-[#C7745A]' : stepIndex > 1 ? 'text-slate-400' : 'text-slate-300'}`}>
+          <span className={`text-sm transition-colors ${stepTextClass(1)}`}>
             Your Preferences
           </span>
 
           <span className="text-[#D4BAB0] text-sm">›</span>
-          <span className={`text-sm font-semibold transition-colors ${stepIndex === 2 ? 'text-[#C7745A]' : 'text-slate-300'}`}>
+          <span className={`text-sm transition-colors ${stepTextClass(2)}`}>
             Recommendation
           </span>
         </div>

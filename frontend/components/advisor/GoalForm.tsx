@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ChevronLeft, Loader2 } from 'lucide-react';
-import { GoalKey, GOALS } from './GoalSelector';
+import { GoalKey } from './GoalSelector';
 
 export type GoalPreferences = {
   budget_max?: number;
@@ -25,12 +25,17 @@ const DEFAULT_PREFS: GoalPreferences = {
   road_access_required: false,
 };
 
+type FieldBase = {
+  key: keyof GoalPreferences;
+  label: string;
+};
+
 type FieldDef =
-  | { type: 'number'; key: keyof GoalPreferences; label: string; placeholder: string; prefix?: string }
-  | { type: 'text'; key: keyof GoalPreferences; label: string; placeholder: string }
-  | { type: 'radio'; key: keyof GoalPreferences; label: string; options: { value: string; label: string }[] }
-  | { type: 'checkbox_group'; key: keyof GoalPreferences; label: string; options: { value: string; label: string }[] }
-  | { type: 'toggle'; key: keyof GoalPreferences; label: string; description?: string };
+  | (FieldBase & { type: 'number'; placeholder: string; prefix?: string })
+  | (FieldBase & { type: 'text'; placeholder: string })
+  | (FieldBase & { type: 'radio'; options: { value: string; label: string }[] })
+  | (FieldBase & { type: 'checkbox_group'; options: { value: string; label: string }[] })
+  | (FieldBase & { type: 'toggle'; description?: string });
 
 const UTILITY_OPTIONS = [
   { value: 'water', label: 'Water' },
@@ -56,8 +61,8 @@ const GOAL_FIELDS: Record<GoalKey, FieldDef[]> = {
     { type: 'text', key: 'preferred_location', label: 'Preferred Location', placeholder: 'City, State or Region' },
     { type: 'number', key: 'min_acres', label: 'Minimum Acreage', placeholder: '1.0' },
     { type: 'checkbox_group', key: 'utilities_required', label: 'Required Utilities', options: UTILITY_OPTIONS },
-    { type: 'toggle', key: 'road_access_required', label: 'Road Access Required', description: 'Plot must have confirmed road access' },
-    { type: 'text', key: 'zoning_preference', label: 'Zoning Preference', placeholder: 'e.g. Residential, Agricultural' },
+    { type: 'toggle', key: 'road_access_required', label: 'Road Access' },
+    { type: 'text', key: 'zoning_preference', label: 'Preferred Zoning', placeholder: 'e.g. Residential, Agricultural' },
     { type: 'radio', key: 'risk_tolerance', label: 'Risk Tolerance', options: RISK_OPTIONS },
   ],
   invest_appreciation: [
@@ -73,14 +78,14 @@ const GOAL_FIELDS: Record<GoalKey, FieldDef[]> = {
     { type: 'text', key: 'preferred_location', label: 'Preferred Location', placeholder: 'City, State or Region' },
     { type: 'toggle', key: 'quiet_area', label: 'Quiet / Rural Area', description: 'Prefer peaceful, less developed surroundings' },
     { type: 'checkbox_group', key: 'utilities_required', label: 'Required Utilities', options: UTILITY_OPTIONS },
-    { type: 'toggle', key: 'road_access_required', label: 'Road Access Required', description: 'Plot must have confirmed road access' },
+    { type: 'toggle', key: 'road_access_required', label: 'Road Access' },
     { type: 'number', key: 'min_acres', label: 'Minimum Acreage', placeholder: '1.0' },
   ],
   commercial: [
     { type: 'number', key: 'budget_max', label: 'Maximum Budget', placeholder: '300,000', prefix: '$' },
     { type: 'text', key: 'preferred_location', label: 'Preferred Location', placeholder: 'City, State or Region' },
-    { type: 'toggle', key: 'commercial_zoning_required', label: 'Commercial Zoning Required', description: 'Exclude plots without commercial zoning' },
-    { type: 'toggle', key: 'road_access_required', label: 'Road Access Required', description: 'Plot must have confirmed road access' },
+    { type: 'toggle', key: 'commercial_zoning_required', label: 'Preferred Zoning', description: 'Focus on plots with commercial zoning.' },
+    { type: 'toggle', key: 'road_access_required', label: 'Road Access' },
     { type: 'number', key: 'min_acres', label: 'Minimum Acreage', placeholder: '2.0' },
     { type: 'radio', key: 'risk_tolerance', label: 'Risk Tolerance', options: RISK_OPTIONS },
   ],
@@ -102,6 +107,22 @@ export const GOAL_LABELS: Record<GoalKey, string> = {
   maximize_value: 'Maximize Value',
 };
 
+const GOAL_BADGE_ICONS: Record<GoalKey, string> = {
+  build_home: '🏡',
+  invest_appreciation: '📈',
+  retirement_lifestyle: '🌿',
+  commercial: '🏢',
+  maximize_value: '💰',
+};
+
+const GOAL_BADGE_LABELS: Record<GoalKey, string> = {
+  build_home: 'Building a Home',
+  invest_appreciation: 'Investing for Appreciation',
+  retirement_lifestyle: 'Retirement & Lifestyle',
+  commercial: 'Commercial Development',
+  maximize_value: 'Maximize Value',
+};
+
 type Props = {
   goal: GoalKey;
   initialPrefs?: GoalPreferences;
@@ -112,16 +133,17 @@ type Props = {
 
 export default function GoalForm({ goal, initialPrefs, onBack, onSubmit, loading }: Props) {
   const [prefs, setPrefs] = useState<GoalPreferences>(initialPrefs ?? { ...DEFAULT_PREFS });
+  const [validationMessage, setValidationMessage] = useState('');
 
-  const goalDef = GOALS.find((g) => g.key === goal)!;
   const fields = GOAL_FIELDS[goal] ?? [];
-  const Icon = goalDef?.icon;
 
   function setField(key: keyof GoalPreferences, value: unknown) {
+    setValidationMessage('');
     setPrefs((prev) => ({ ...prev, [key]: value }));
   }
 
   function toggleInList(key: 'utilities_required' | 'utilities_preferred', value: string) {
+    setValidationMessage('');
     setPrefs((prev) => {
       const list = (prev[key] ?? []) as string[];
       return {
@@ -131,34 +153,55 @@ export default function GoalForm({ goal, initialPrefs, onBack, onSubmit, loading
     });
   }
 
+  function hasAnyPreference(values: GoalPreferences) {
+    return Object.values(values).some((value) => {
+      if (Array.isArray(value)) return value.length > 0;
+      if (typeof value === 'string') return value.trim().length > 0;
+      if (typeof value === 'number') return Number.isFinite(value);
+      if (typeof value === 'boolean') return value;
+      return false;
+    });
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!hasAnyPreference(prefs)) {
+      setValidationMessage('Tell us at least one preference so SmartPlots can generate personalized recommendations.');
+      return;
+    }
     onSubmit(prefs);
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6 max-w-xl mx-auto w-full py-6 animate-fadeIn">
       {/* Goal badge + back */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-700 transition-colors"
+          className="flex items-center gap-1.5 text-sm font-medium text-slate-400 hover:text-slate-700 transition-colors"
         >
           <ChevronLeft size={15} />
-          Change goal
+          Change Goal
         </button>
-        <div
-          className="flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium"
-          style={{ backgroundColor: `${goalDef.accent}15`, color: goalDef.accent }}
-        >
-          {Icon && <Icon size={14} />}
-          {GOAL_LABELS[goal]}
+        <div className="flex items-center gap-2 rounded-full border border-[#E7D3CC] bg-[#F8E8E1] px-4 py-1.5 text-sm font-semibold text-[#C7745A]">
+          <span aria-hidden="true">{GOAL_BADGE_ICONS[goal]}</span>
+          {GOAL_BADGE_LABELS[goal]}
         </div>
       </div>
 
       {/* Divider */}
       <div className="h-px bg-[#E7D3CC]" />
+
+      <p className="text-sm leading-6 text-slate-500">
+        Tell us what's important to you.
+      </p>
+
+      {validationMessage && (
+        <div className="rounded-2xl border border-[#E7D3CC] bg-[#F8E8E1] px-4 py-3 text-sm font-medium text-[#A85E47]">
+          {validationMessage}
+        </div>
+      )}
 
       {/* Fields */}
       <div className="flex flex-col gap-5">
@@ -206,8 +249,8 @@ export default function GoalForm({ goal, initialPrefs, onBack, onSubmit, loading
                         type="button"
                         onClick={() => setField(field.key, opt.value)}
                         className={`rounded-full border px-5 py-2 text-sm font-medium transition ${active
-                            ? 'bg-[#C7745A] border-[#C7745A] text-white shadow-sm'
-                            : 'border-[#E7D3CC] bg-white text-slate-500 hover:border-[#C7745A] hover:text-[#C7745A]'
+                          ? 'bg-[#C7745A] border-[#C7745A] text-white shadow-sm'
+                          : 'border-[#E7D3CC] bg-white text-slate-500 hover:border-[#C7745A] hover:text-[#C7745A]'
                           }`}
                       >
                         {opt.label}
@@ -235,8 +278,8 @@ export default function GoalForm({ goal, initialPrefs, onBack, onSubmit, loading
                         type="button"
                         onClick={() => toggleInList(listKey, opt.value)}
                         className={`rounded-full border px-5 py-2 text-sm font-medium transition ${active
-                            ? 'bg-[#C7745A] border-[#C7745A] text-white shadow-sm'
-                            : 'border-[#E7D3CC] bg-white text-slate-500 hover:border-[#C7745A] hover:text-[#C7745A]'
+                          ? 'bg-[#C7745A] border-[#C7745A] text-white shadow-sm'
+                          : 'border-[#E7D3CC] bg-white text-slate-500 hover:border-[#C7745A] hover:text-[#C7745A]'
                           }`}
                       >
                         {opt.label}
@@ -259,7 +302,7 @@ export default function GoalForm({ goal, initialPrefs, onBack, onSubmit, loading
                 <div>
                   <p className="text-sm font-semibold text-slate-700">{field.label}</p>
                   {field.description && (
-                    <p className="mt-0.5 text-xs text-slate-400">{field.description}</p>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-400">{field.description}</p>
                   )}
                 </div>
                 <button
@@ -293,7 +336,7 @@ export default function GoalForm({ goal, initialPrefs, onBack, onSubmit, loading
             Finding your best plots…
           </>
         ) : (
-          'Find My Best Plots'
+          'Generate Recommendations'
         )}
       </button>
     </form>
