@@ -8,7 +8,7 @@ class SmartSearchRequest(BaseModel):
 
 
 class SearchFiltersPayload(BaseModel):
-    keyword: str | None = None
+    search_term: str | None = None
     city: str | None = None
     state: str | None = None
     min_price: float | None = None
@@ -23,9 +23,9 @@ class SearchFiltersPayload(BaseModel):
     electricity: bool | None = None
     sewer: bool | None = None
 
-    def to_filters(self, keyword: str | None = None) -> PlotSearchFilters:
+    def to_filters(self, search_term: str | None = None) -> PlotSearchFilters:
         return PlotSearchFilters(
-            keyword=keyword if keyword is not None else self.keyword,
+            search_term=search_term if search_term is not None else self.search_term,
             city=self.city,
             state=self.state,
             min_price=self.min_price,

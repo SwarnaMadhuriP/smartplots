@@ -12,7 +12,7 @@ import re
 
 @dataclass(slots=True)
 class PlotSearchFilters:
-    keyword: str | None = None
+    search_term: str | None = None
     city: str | None = None
     state: str | None = None
     min_price: float | None = None
@@ -141,7 +141,7 @@ def extract_query_filters(query: str, filters: PlotSearchFilters) -> PlotSearchF
             extracted = True
 
     if extracted:
-        next_filters.keyword = None
+        next_filters.search_term = None
 
     return next_filters
 
@@ -175,7 +175,7 @@ def apply_plot_filters(query: Query, filters: PlotSearchFilters) -> Query:
     if filters.sewer is not None:
         query = query.filter(Plot.sewer.is_(filters.sewer))
 
-    keyword = filters.keyword.strip() if filters.keyword else ""
+    keyword = filters.search_term.strip() if filters.search_term else ""
 
     if keyword:
         filler_words = {

@@ -21,14 +21,3 @@ async def unified_search(
         return run_db_search(request, db)
 
     return await run_agent_search(request, db)
-
-
-@router.post("/ai/search")
-async def ai_search(request: SmartSearchRequest):
-    unified = await run_agent_search(UnifiedSearchRequest(query=request.query))
-    return {
-        "response": unified["ai_summary"],
-        "plots": unified["plots"],
-        "filters": unified["filters"],
-        "route": unified["route"],
-    }

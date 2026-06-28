@@ -5,7 +5,7 @@ from app.agents.context import ToolContext
 
 def search_and_score_plots(
     query: str = "",
-    keyword: str | None = None,
+    search_term: str | None = None,
     city: str | None = None,
     state: str | None = None,
     min_price: float | None = None,
@@ -37,7 +37,7 @@ def search_and_score_plots(
 
     try:
         filters = PlotSearchFilters(
-            keyword=keyword,
+            search_term=search_term,
             city=city,
             state=state,
             min_price=min_price,
@@ -94,7 +94,7 @@ def search_and_score_plots(
         )
 
         active_filters = {
-            "keyword": keyword,
+            "search_term": search_term,
             "city": city,
             "state": state,
             "min_price": min_price,

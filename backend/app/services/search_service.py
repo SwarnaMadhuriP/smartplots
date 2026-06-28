@@ -28,7 +28,7 @@ def run_db_search(
     db: Session,
 ) -> dict[str, Any]:
     query = request.query.strip()
-    filters = request.filters.to_filters(keyword=query or request.filters.keyword)
+    filters = request.filters.to_filters()
     filters = extract_query_filters(query, filters)
     plots = search_plots(db, filters, sort_by=request.sort_by)
     return {
@@ -45,7 +45,7 @@ def run_query_filter_fallback(
     message: str,
 ) -> dict[str, Any]:
     query = request.query.strip()
-    filters = request.filters.to_filters(keyword=query or request.filters.keyword)
+    filters = request.filters.to_filters()
     filters = extract_query_filters(query, filters)
     plots = search_plots(db, filters, sort_by=request.sort_by)
     return {
@@ -98,8 +98,19 @@ async def run_agent_search(
             if event.is_final_response() and event.content and event.content.parts:
                 response_text = event.content.parts[0].text or ""
     except Exception as e:
-        print(f"Error during agent pipeline execution: {e}")
-        response_text = "Rate Limiting Exceeded - Please try again in 20-30 seconds"
+        print("AI search pipeline failed")
+        
+        error = str(e)
+
+        if "429" in error or "resourceexhausted" in error.lower():
+            response_text = (
+                "Gemini rate limit exceeded. Please try again in 20–30 seconds."
+            )
+        else:
+            response_text = (
+                f"AI search failed ({type(e).__name__}). Please try again."
+            )
+
         agent_failed = True
 
     session = await session_service.get_session(

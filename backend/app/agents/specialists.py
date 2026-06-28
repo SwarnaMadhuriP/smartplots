@@ -1,3 +1,5 @@
+from app.agents.prompts import AI_SEARCH_RANKING_EXPLAINER_PROMPT
+from app.agents.prompts import AI_SEARCH_AGENT_PROMPT
 from google.adk.agents import Agent
 
 from app.agents.callbacks import init_planner_state
@@ -28,15 +30,7 @@ search_agent = Agent(
 ai_search_agent = Agent(
     name="ai_search_agent",
     model="gemini-2.5-flash",
-    instruction="""You are the Search Agent. Your goal is to find land plots matching the user's query.
-    Extract structured filters from the user prompt, then call search_and_score_plots.
-    Use only supported deterministic filters: keyword, city, state, min_price, max_price,
-    min_area, max_area, zoning_type, listing_type, status, road_access, water_access,
-    electricity, sewer, and purpose.
-    Do not pass full raw natural-language requests as keyword. Use keyword only for a
-    concise searchable term such as "lake", "downtown", "camping", or "Austin".
-    Do not query the database directly or invent filtering logic. Do not summarize the plots;
-    simply execute the tool. The results will be processed by other agents.""",
+    instruction=AI_SEARCH_AGENT_PROMPT,
     tools=[search_and_score_plots],
     before_agent_callback=init_planner_state,
 )
@@ -137,14 +131,5 @@ recommendation_agent = Agent(
 ai_search_ranking_explainer_agent = Agent(
     name="ai_search_ranking_explainer_agent",
     model="gemini-2.5-flash",
-    instruction="""You are the AI Search Ranking Explainer Agent.
-    Your job is to:
-    - Read the retrieved plots: {ranked_plots}
-    - Read the search filters applied: {filters}
-    - Read the original user query: {query}
-    - Produce a concise search summary.
-    - Explain why the top plots matched the user query and filters based on their ranking.
-    - Do not calculate or invent scores (use only the provided matchScore).
-    - Do not invent any facts about the plots.
-    - Do not reference investment metrics/scores, risk analysis/scores, location analysis/scores, or documents/document intelligence. Rely only on the general plot characteristics and the user's criteria.""",
+    instruction=AI_SEARCH_RANKING_EXPLAINER_PROMPT
 )

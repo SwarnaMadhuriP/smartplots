@@ -20,69 +20,9 @@ ASK_SPECIALIST_LIMIT = 2
 
 
 def classify_search_query(query: str) -> SearchRoute:
-    text = query.strip().lower()
-    if not text:
+    if not query.strip():
         return SearchRoute.DB_SEARCH
 
-    words = text.split()
-    has_numbers = any(char.isdigit() for char in text)
-    ai_keywords = {
-        "under",
-        "over",
-        "above",
-        "below",
-        "less",
-        "more",
-        "between",
-        "acres",
-        "acre",
-        "budget",
-        "near",
-        "with",
-        "without",
-        "cheap",
-        "affordable",
-        "farmland",
-        "commercial",
-        "residential",
-        "agricultural",
-        "camping",
-        "farming",
-        "water",
-        "road",
-        "electricity",
-        "sewer",
-        "power",
-        "recommend",
-        "best",
-        "why",
-        "compare",
-        "tradeoff",
-        "tradeoffs",
-        "risk",
-        "investment",
-        "appreciation",
-        "roi",
-        "return",
-        "documents",
-        "document",
-        "brochure",
-        "report",
-        "records",
-        "zoning",
-        "hoa",
-        "flood",
-        "build",
-        "develop",
-        "due diligence",
-    }
-
-    if (
-        len(words) <= 2
-        and not has_numbers
-        and not any(keyword in text for keyword in ai_keywords)
-    ):
-        return SearchRoute.DB_SEARCH
     return SearchRoute.AI_SEARCH
 
 
