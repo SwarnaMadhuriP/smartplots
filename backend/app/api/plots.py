@@ -11,7 +11,6 @@ router = APIRouter()
 
 def plot_search_filters_from_query(
     search: str | None = Query(default=None, description="Keyword search alias"),
-    keyword: str | None = Query(default=None),
     city: str | None = Query(default=None),
     state: str | None = Query(default=None),
     min_price: float | None = Query(default=None, ge=0),
@@ -27,7 +26,7 @@ def plot_search_filters_from_query(
     sewer: bool | None = Query(default=None),
 ) -> PlotSearchFilters:
     return PlotSearchFilters(
-        keyword=keyword or search,
+        search_term=search,
         city=city,
         state=state,
         min_price=min_price,

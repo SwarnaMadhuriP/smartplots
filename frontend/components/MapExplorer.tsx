@@ -21,22 +21,6 @@ export default function MapExplorer({
       typeof plot.latitude === 'number' && typeof plot.longitude === 'number',
   );
 
-  const markerIcon = L.divIcon({
-    className: '',
-    html: `
-      <div style="
-        width: 18px;
-        height: 18px;
-        background: ${selectedPlotId ? '#C7745A' : '#D8B4A6'};
-        border: 3px solid white;
-        border-radius: 9999px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-      "></div>
-    `,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
-  });
-
   return (
     <section className="rounded-[2rem] border border-[#E7D3CC] bg-white p-6 shadow-sm">
       <h1 className="text-2xl font-bold text-slate-900">Map Explorer</h1>
