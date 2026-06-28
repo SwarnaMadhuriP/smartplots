@@ -6,7 +6,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Query, Session
 
 from app.models import Plot
-from app.sorting import SortOption, apply_plot_sort
+from app.services.sorting_service import SortOption, apply_plot_sort
 import re
 
 
@@ -28,7 +28,7 @@ class PlotSearchFilters:
     sewer: bool | None = None
 
 
-def _parse_number(value: str, suffix: str | None = None) -> float | None:
+def parse_number(value: str, suffix: str | None = None) -> float | None:
     try:
         number = float(value.replace(",", ""))
     except ValueError:
@@ -55,7 +55,7 @@ def extract_query_filters(query: str, filters: PlotSearchFilters) -> PlotSearchF
         text,
     )
     if next_filters.max_price is None and max_price_match:
-        max_price = _parse_number(max_price_match.group(1), max_price_match.group(2))
+        max_price = parse_number(max_price_match.group(1), max_price_match.group(2))
         if max_price is not None:
             next_filters.max_price = max_price
             extracted = True
@@ -65,7 +65,7 @@ def extract_query_filters(query: str, filters: PlotSearchFilters) -> PlotSearchF
         text,
     )
     if next_filters.min_price is None and min_price_match:
-        min_price = _parse_number(min_price_match.group(1), min_price_match.group(2))
+        min_price = parse_number(min_price_match.group(1), min_price_match.group(2))
         if min_price is not None:
             next_filters.min_price = min_price
             extracted = True
@@ -75,7 +75,7 @@ def extract_query_filters(query: str, filters: PlotSearchFilters) -> PlotSearchF
         text,
     )
     if next_filters.max_area is None and max_area_match:
-        max_area = _parse_number(max_area_match.group(1))
+        max_area = parse_number(max_area_match.group(1))
         if max_area is not None:
             next_filters.max_area = max_area
             extracted = True
@@ -85,7 +85,7 @@ def extract_query_filters(query: str, filters: PlotSearchFilters) -> PlotSearchF
         text,
     )
     if next_filters.min_area is None and min_area_match:
-        min_area = _parse_number(min_area_match.group(1))
+        min_area = parse_number(min_area_match.group(1))
         if min_area is not None:
             next_filters.min_area = min_area
             extracted = True

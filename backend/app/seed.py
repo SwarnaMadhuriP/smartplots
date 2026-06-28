@@ -2,7 +2,7 @@ from typing import TypedDict
 from .database import SessionLocal
 from .models import Plot, PlotImage, Document, DocumentChunk
 from sqlalchemy import text
-from .ingest import ingest_document
+from app.rag.ingest import ingest_document
 
 db = SessionLocal()
 

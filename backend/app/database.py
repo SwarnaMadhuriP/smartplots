@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
 import os
@@ -23,3 +23,9 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# Ensure pgvector extension is enabled in PostgreSQL
+def initialize_database():
+    with engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.commit()

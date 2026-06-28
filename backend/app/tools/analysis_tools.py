@@ -1,6 +1,82 @@
-from __future__ import annotations
-
 from typing import Any, Literal, Protocol
+from app.models import Plot
+from app.database import SessionLocal
+from app.agents.context import ToolContext
+
+def _ranked_plot_ids_from_state(tool_context: ToolContext | None) -> list[int]:
+    if not tool_context:
+        return []
+    ranked_plots = tool_context.state.get("ranked_plots", [])
+    return [
+        int(plot["id"])
+        for plot in ranked_plots
+        if isinstance(plot, dict) and plot.get("id") is not None
+    ]
+
+
+def _plots_by_ids(plot_ids: list[int]) -> list[Plot]:
+    if not plot_ids:
+        return []
+    db = SessionLocal()
+    try:
+        plots = db.query(Plot).filter(Plot.id.in_(plot_ids)).all()
+        order = {plot_id: index for index, plot_id in enumerate(plot_ids)}
+        return sorted(plots, key=lambda plot: order.get(plot.id, len(order)))
+    finally:
+        db.close()
+
+
+def calculate_investment_analysis(
+    tool_context: ToolContext | None = None,
+) -> dict:
+    """Calculates deterministic investment metrics for the current ranked plots."""
+    plot_ids = _ranked_plot_ids_from_state(tool_context)
+    plots = _plots_by_ids(plot_ids)
+    filters = tool_context.state.get("filters", {}) if tool_context else {}
+    max_budget = filters.get("max_price") if isinstance(filters, dict) else None
+
+    metrics = [
+        calculate_investment_metrics(plot, max_budget=max_budget) for plot in plots
+    ]
+    if tool_context:
+        tool_context.state["investment_metrics"] = metrics
+    return {"status": "success", "investment_metrics": metrics}
+
+
+def calculate_risk_analysis(tool_context: ToolContext | None = None) -> dict:
+    """Calculates deterministic risk metrics for the current ranked plots."""
+    plots = _plots_by_ids(_ranked_plot_ids_from_state(tool_context))
+    metrics = [calculate_risk_metrics(plot) for plot in plots]
+    if tool_context:
+        tool_context.state["risk_metrics"] = metrics
+    return {"status": "success", "risk_metrics": metrics}
+
+
+def calculate_location_analysis(tool_context: ToolContext | None = None) -> dict:
+    """Calculates deterministic location metrics for the current ranked plots."""
+    plots = _plots_by_ids(_ranked_plot_ids_from_state(tool_context))
+    filters = tool_context.state.get("filters", {}) if tool_context else {}
+    purpose = filters.get("purpose") if isinstance(filters, dict) else None
+    metrics = [calculate_location_metrics(plot, purpose=purpose) for plot in plots]
+    if tool_context:
+        tool_context.state["location_metrics"] = metrics
+    return {"status": "success", "location_metrics": metrics}
+
+
+def calculate_catalog_analysis(tool_context: ToolContext | None = None) -> dict:
+    """Builds a combined deterministic analysis bundle for ranked plots."""
+    plots = _plots_by_ids(_ranked_plot_ids_from_state(tool_context))
+    filters = tool_context.state.get("filters", {}) if tool_context else {}
+    max_budget = filters.get("max_price") if isinstance(filters, dict) else None
+    purpose = filters.get("purpose") if isinstance(filters, dict) else None
+    analysis = build_catalog_analysis(
+        plots,
+        max_budget=max_budget,
+        purpose=purpose,
+    )
+    if tool_context:
+        tool_context.state["combined_analysis"] = analysis
+    return {"status": "success", "combined_analysis": analysis}
 
 RiskLevel = Literal["Low", "Medium", "High"]
 
