@@ -113,13 +113,18 @@ def _retrieve_document_evidence(
         return []
 
     q_vector = embed_response.embeddings[0].values
-    return (
-        db.query(DocumentChunk)
-        .filter(DocumentChunk.plot_id == plot_id)
-        .order_by(DocumentChunk.embedding.cosine_distance(cast(q_vector, Vector(768))))
-        .limit(5)
-        .all()
-    )
+    try:
+        return (
+            db.query(DocumentChunk)
+            .filter(DocumentChunk.plot_id == plot_id)
+            .order_by(
+                DocumentChunk.embedding.cosine_distance(cast(q_vector, Vector(768)))
+            )
+            .limit(5)
+            .all()
+        )
+    except Exception:
+        return []
 
 
 def _compose_ask_answer(
@@ -157,7 +162,7 @@ def _compose_ask_answer(
 
 def ask_about_plot(plot: Plot, question: str, db: Session) -> dict[str, Any]:
     question_route = classify_question(question)
-    chunks = _retrieve_document_evidence(plot.id, question, db)
+    chunks = _retrieve_document_evidence(type_cast(int, plot.id), question, db)
     specialists = select_ask_specialists(question)
     specialist_analysis = _run_ask_specialists(plot, question, specialists)
     answer = _compose_ask_answer(
