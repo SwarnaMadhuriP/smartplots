@@ -67,6 +67,10 @@ def _agent_search_message(request: UnifiedSearchRequest) -> str:
         f"Structured filters JSON: {json.dumps(active_filters, sort_keys=True)}"
     )
 
+# TODO:
+# Debug ai_search_ranking_explainer_agent.
+# If the explainer returns no final response, investigate ADK event flow
+# and session state propagation.
 
 async def run_agent_search(
     request: UnifiedSearchRequest,
@@ -98,17 +102,19 @@ async def run_agent_search(
             if event.is_final_response() and event.content and event.content.parts:
                 response_text = event.content.parts[0].text or ""
     except Exception as e:
-        print("AI search pipeline failed")
-        
-        error = str(e)
+        print(f"AI search pipeline failed: {e}")
 
-        if "429" in error or "resourceexhausted" in error.lower():
+        error = str(e).lower()
+
+        if "429" in error or "resourceexhausted" in error or "rate" in error:
             response_text = (
-                "Gemini rate limit exceeded. Please try again in 20–30 seconds."
+                "AI explanation is temporarily unavailable because the Gemini API is rate limited. "
+                "Your search results have still been retrieved and ranked."
             )
         else:
             response_text = (
-                f"AI search failed ({type(e).__name__}). Please try again."
+                "AI explanation is temporarily unavailable. "
+                "Your search results have still been retrieved."
             )
 
         agent_failed = True
