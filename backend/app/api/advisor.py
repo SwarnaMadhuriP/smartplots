@@ -42,7 +42,7 @@ def advisor_recommend(request: RecommendRequest, db: Session = Depends(get_db)):
     if not plots:
         raise HTTPException(status_code=400, detail="No plots in catalog.")
 
-    notices = advisor_preflight_notices(plots, request.preferences)
+    notices = advisor_preflight_notices(plots, request.goal, request.preferences)
 
     try:
         result = run_goal_recommendation(
@@ -113,7 +113,7 @@ def advisor_feedback(request: FeedbackRequest, db: Session = Depends(get_db)):
     if not plots:
         raise HTTPException(status_code=400, detail="No plots in catalog.")
 
-    notices = advisor_preflight_notices(plots, updated_prefs)
+    notices = advisor_preflight_notices(plots, session.goal, updated_prefs)
 
     try:
         result = run_refine_recommendation(

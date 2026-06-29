@@ -51,18 +51,18 @@ def score_plot_for_goal(
         score -= 3.0
 
     # Missing each required utility
-    _utility_map = {
+    utility_map = {
         "water": plot.water_access,
         "electricity": plot.electricity,
         "sewer": plot.sewer,
     }
     for utility in prefs.utilities_required:
-        if not _utility_map.get(utility, False):
+        if not utility_map.get(utility, False):
             score -= 2.0
 
     # Missing preferred utilities (softer)
     for utility in prefs.utilities_preferred:
-        if not _utility_map.get(utility, False):
+        if not utility_map.get(utility, False):
             score -= 0.5
 
     # Location mismatch
@@ -74,7 +74,7 @@ def score_plot_for_goal(
             score -= 2.5
 
     # Risk alignment
-    risk_level = (plot.computed_risk_level or "Medium").lower()
+    risk_level = plot.computed_risk_level.lower()
     if prefs.risk_tolerance == "low" and risk_level == "high":
         score -= 3.0
     elif prefs.risk_tolerance == "low" and risk_level == "medium":
@@ -89,26 +89,38 @@ def score_plot_for_goal(
 
     # Goal-specific bonuses
 
-    appreciation = (plot.computed_appreciation or "Low").lower()
+    appreciation = plot.computed_appreciation.lower()
     risk_level_lower = risk_level
 
     if goal == GoalKey.invest_appreciation:
         bonus = {"high": 2.0, "moderate": 1.0, "low": 0.0}
         score += bonus.get(appreciation, 0.0)
-
+ 
     elif goal == GoalKey.maximize_value:
         if plot.area_acres > 0:
             ppa = plot.price / plot.area_acres
+
             if ppa < 15_000:
                 score += 2.5
+                if prefs.price_per_acre_priority:
+                    score += 1.0
+
             elif ppa < 30_000:
                 score += 1.5
+                if prefs.price_per_acre_priority:
+                    score += 0.75
+
             elif ppa < 50_000:
                 score += 0.5
-        if prefs.price_per_acre_priority:
-            # Extra weight on price/acre when user explicitly asked for it
-            if plot.area_acres > 0 and plot.price / plot.area_acres < 20_000:
-                score += 1.0
+                if prefs.price_per_acre_priority:
+                    score += 0.25
+
+        appreciation_bonus = {
+            "high": 1.0,
+            "moderate": 0.5,
+            "low": 0.0,
+        }
+        score += appreciation_bonus.get(appreciation, 0.0)
 
     elif goal == GoalKey.retirement_lifestyle:
         if risk_level_lower == "low":
@@ -142,7 +154,7 @@ def score_plot_for_goal(
     return max(0.0, min(score, 10.0))
 
 
-def get_top_candidates(
+def get_top_plots(
     plots: list[Plot],
     goal: GoalKey,
     prefs: GoalPreferences,

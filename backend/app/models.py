@@ -70,23 +70,29 @@ class Plot(Base):
     def computed_risk_level(self) -> str:
         if self.insight and self.insight.risk_level:
             return self.insight.risk_level
-        # pyrefly: ignore [unsupported-operation]
-        risk_text = ((self.risk_notes or "") + " " + (self.description or "")).lower()
+
+        risk_text = f"{self.risk_notes or ''} {self.description or ''}".lower()
+
         missing_utilities = sum(
             1
-            for u in [self.road_access, self.water_access, self.electricity, self.sewer]
-            if not u
+            for value in [
+                self.road_access,
+                self.water_access,
+                self.electricity,
+                getattr(self, "sewer", False),
+            ]
+            if not value
         )
-        if "flood" in risk_text or "hazard" in risk_text or missing_utilities >= 3:
+
+        high_risk_terms = ["flood", "hazard", "contamination", "legal", "dispute"]
+        medium_risk_terms = ["limited", "restriction", "noise", "competition", "soil"]
+
+        if any(term in risk_text for term in high_risk_terms) or missing_utilities >= 3:
             return "High"
-        elif (
-            "limited" in risk_text
-            or "restriction" in risk_text
-            or missing_utilities >= 1
-            or "noise" in risk_text
-            or "competition" in risk_text
-        ):
+
+        if any(term in risk_text for term in medium_risk_terms) or missing_utilities >= 2:
             return "Medium"
+
         return "Low"
 
     @property
@@ -116,26 +122,52 @@ class Plot(Base):
     def computed_appreciation(self) -> str:
         if self.insight and self.insight.growth_potential:
             return self.insight.growth_potential
-        desc_text = (
-            # pyrefly: ignore [unsupported-operation]
-            (self.description or "")
-            + " "
-            + (self.nearby_landmarks or "")
-        ).lower()
-        if (
-            "downtown" in desc_text
-            or "rapidly growing" in desc_text
-            or "suburb" in desc_text
-            or "highway" in desc_text
-        ):
+
+        desc_text = f"{self.description or ''} {self.nearby_landmarks or ''}".lower()
+
+        high_terms = [
+            "downtown",
+            "rapidly growing",
+            "growth corridor",
+            "suburb",
+            "highway",
+            "tech hub",
+            "near airport",
+            "development",
+            "commercial",
+            "mixed use",
+            "expansion",
+        ]
+
+        low_terms = [
+            "flood",
+            "hazard",
+            "restricted",
+            "remote",
+            "declining",
+            "poor access",
+        ]
+
+        if any(term in desc_text for term in high_terms):
             return "High"
+
+        if any(term in desc_text for term in low_terms):
+            return "Low"
+
         missing_utilities = sum(
             1
-            for u in [self.road_access, self.water_access, self.electricity, self.sewer]
-            if not u
+            for value in [
+                self.road_access,
+                self.water_access,
+                self.electricity,
+                getattr(self, "sewer", False),
+            ]
+            if not value
         )
-        if "rural" in desc_text or "farming" in desc_text or missing_utilities >= 2:
+
+        if missing_utilities >= 3:
             return "Low"
+
         return "Moderate"
 
     @property

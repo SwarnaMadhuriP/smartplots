@@ -114,34 +114,28 @@ def apply_feedback_to_preferences(
 
     if feedback == FeedbackOption.too_expensive:
         if updated.budget_max is not None:
-            updated.budget_max = updated.budget_max * 0.80  # Tighten budget by 20%
-        # No change if budget wasn't set — AI will deprioritize expensive plots via prompt
+            updated.budget_max = round(updated.budget_max * 0.80, 2)
 
     elif feedback == FeedbackOption.too_risky:
         updated.risk_tolerance = "low"
 
     elif feedback == FeedbackOption.wrong_location:
-        # Clear the location so the scorer doesn't penalise all remaining plots
         updated.preferred_location = None
 
     elif feedback == FeedbackOption.need_more_acreage:
         if updated.min_acres is not None:
-            updated.min_acres = updated.min_acres * 1.5
+            updated.min_acres = round(updated.min_acres * 1.5, 2)
         else:
-            updated.min_acres = 2.0  # Default minimum if not previously set
+            updated.min_acres = 2.0
 
     elif feedback == FeedbackOption.need_utilities:
-        # Upgrade preferred utilities to required
-        required = set(updated.utilities_required)
+        required = set(updated.utilities_required or [])
         required.update(["water", "electricity"])
         updated.utilities_required = sorted(required)
         updated.utilities_preferred = []
 
     elif feedback == FeedbackOption.prefer_lower_price_per_acre:
         updated.price_per_acre_priority = True
-
-    # show_alternatives and good_recommendation: no preference change
-    # (handled separately in the endpoint logic)
 
     return updated
 

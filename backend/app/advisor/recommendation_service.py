@@ -4,7 +4,7 @@ from google.genai import types
 from pydantic import BaseModel
 
 from app.advisor.prompt_builder import build_recommend_prompt, build_refine_prompt
-from app.advisor.scorer import get_top_candidates
+from app.advisor.scorer import get_top_plots
 from app.core.gemini import call_with_retry
 from app.models import Plot
 
@@ -12,7 +12,7 @@ from app.models import Plot
 class GoalRecommendationOutput(BaseModel):
     """Structured AI output schema for goal-based recommendation."""
 
-    class _PlotItem(BaseModel):
+    class PlotItem(BaseModel):
         plot_id: int
         title: str
         location: str
@@ -21,7 +21,7 @@ class GoalRecommendationOutput(BaseModel):
         score: float
         match_reason: str
 
-    class _AltItem(BaseModel):
+    class AltItem(BaseModel):
         plot_id: int
         title: str
         location: str
@@ -29,13 +29,13 @@ class GoalRecommendationOutput(BaseModel):
         acres: str
         key_differentiator: str
 
-    recommended_plots: list[_PlotItem]
-    primary_recommendation: _PlotItem
+    recommended_plots: list[PlotItem]
+    primary_recommendation: PlotItem
     confidence: float
     reasoning: list[str]
     risks: list[str]
     tradeoffs: list[str]
-    alternatives: list[_AltItem]
+    alternatives: list[AltItem]
     next_steps: list[str]
 
 
@@ -50,14 +50,14 @@ def run_goal_recommendation(
     2. Top candidates are sent to Gemini with a structured prompt.
     3. Returns AdvisorRecommendation-compatible data.
     """
-    top_candidates = get_top_candidates(plots, goal, preferences)
+    top_plots = get_top_plots(plots, goal, preferences)
 
-    if not top_candidates:
+    if not top_plots:
         raise ValueError(
             "No plots match your criteria. Try relaxing your budget, location, or utility requirements."
         )
 
-    prompt = build_recommend_prompt(goal, preferences, top_candidates)
+    prompt = build_recommend_prompt(goal, preferences, top_plots)
 
     try:
         response = call_with_retry(
@@ -91,9 +91,9 @@ def run_refine_recommendation(
     Refinement pipeline triggered by user feedback.
     Re-scores with updated preferences, then re-runs AI with feedback context.
     """
-    top_candidates = get_top_candidates(plots, goal, updated_preferences)
+    top_plots = get_top_plots(plots, goal, updated_preferences)
 
-    if not top_candidates:
+    if not top_plots:
         raise ValueError(
             "After applying your feedback, no plots match the updated criteria. "
             "Try adjusting your preferences."
@@ -102,7 +102,7 @@ def run_refine_recommendation(
     prompt = build_refine_prompt(
         goal,
         updated_preferences,
-        top_candidates,
+        top_plots,
         feedback_label,
     )
 
