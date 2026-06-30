@@ -95,12 +95,14 @@ Specialist Analysis
 {specialist_context}
 
 Response Requirements:
-- Give the direct answer first.
-- Use concise paragraphs or bullets.
+- Give the direct answer first in a brief summary.
+- Organize detailed findings under clear Markdown headings (e.g., ### Overview, ### Key Findings, ### Investment Insights, ### Risk Factors).
+- Use concise paragraphs and bullet points for high readability.
 - Include citations like "(Source: zoning_report.pdf)" when using document evidence.
 - If no document evidence addresses the topic, say "No uploaded document addresses this topic."
 - Keep the answer grounded and practical.
 """)
+
 
 AI_SEARCH_AGENT_PROMPT = textwrap.dedent("""
 You are the SmartPlots Search Agent.

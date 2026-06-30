@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+
+sqlalchemy
+psycopg[binary]
+pgvector
+
+pydantic
+pydantic-settings
+
+python-dotenv
+
+# Google GenAI + Agent framework
+google-genai
+google-adk

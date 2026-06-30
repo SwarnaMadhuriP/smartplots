@@ -49,6 +49,10 @@ def classify_question(question: str) -> QuestionRoute:
     }
     investment_keywords = {
         "investment",
+        "invest",
+        "investing",
+        "investor",
+        "worth",
         "price",
         "value",
         "appreciation",
@@ -60,6 +64,9 @@ def classify_question(question: str) -> QuestionRoute:
         "resale",
         "afford",
         "financial",
+        "prospects",
+        "potential",
+        "growth",
     }
     risk_keywords = {
         "risk",
@@ -119,6 +126,11 @@ def select_ask_specialists(question: str) -> list[QuestionRoute]:
             "should i buy",
             "should we buy",
             "worth buying",
+            "worth investing",
+            "worth it",
+            "should i invest",
+            "should we invest",
+            "good investment",
             "recommend",
             "good deal",
         ]
@@ -148,6 +160,10 @@ def select_ask_specialists(question: str) -> list[QuestionRoute]:
     }
     investment_terms = {
         "investment",
+        "invest",
+        "investing",
+        "investor",
+        "worth",
         "price",
         "value",
         "appreciation",
@@ -159,6 +175,9 @@ def select_ask_specialists(question: str) -> list[QuestionRoute]:
         "resale",
         "afford",
         "financial",
+        "prospects",
+        "potential",
+        "growth",
     }
     risk_terms = {
         "risk",
@@ -196,4 +215,10 @@ def select_ask_specialists(question: str) -> list[QuestionRoute]:
     }:
         add(route)
 
+    # Fallback default specialists if none matched specifically
+    if not selected:
+        add(QuestionRoute.INVESTMENT)
+        add(QuestionRoute.RISK)
+
     return selected[:ASK_SPECIALIST_LIMIT]
+

@@ -60,6 +60,7 @@ def _source_references(chunks: list[DocumentChunk]) -> list[dict[str, Any]]:
     seen = set()
     for chunk in chunks:
         filename = chunk.document.filename if chunk.document else "unknown"
+        document_type = chunk.document.document_type if chunk.document else "document"
         key = (filename, chunk.page_number)
 
         if key in seen:
@@ -73,6 +74,7 @@ def _source_references(chunks: list[DocumentChunk]) -> list[dict[str, Any]]:
                 "filename": filename,
                 "page": chunk.page_number,
                 "excerpt": excerpt,
+                "document_type": document_type,
             }
         )
 
@@ -157,6 +159,9 @@ def _compose_ask_answer(
         )
         return response.text or "No answer generated."
     except Exception as e:
+        err = str(e).lower()
+        if any(k in err for k in ("quota", "rate", "429", "resource exhausted", "exhausted")):
+            raise HTTPException(status_code=429, detail="Rate limit reached. Please wait a moment and try again.")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -174,10 +179,31 @@ def ask_about_plot(plot: Plot, question: str, db: Session) -> dict[str, Any]:
         specialist_analysis=specialist_analysis,
     )
 
+    missing_fields = [
+        f for f in ["zoning_type", "risk_notes", "sewer"]
+        if not getattr(plot, f, None)
+    ]
+
+    plot_context = {
+        "price": plot.price,
+        "area_acres": plot.area_acres,
+        "zoning_type": plot.zoning_type,
+        "city": plot.city,
+        "state": plot.state,
+        "road_access": plot.road_access,
+        "water_access": plot.water_access,
+        "electricity": plot.electricity,
+        "sewer": plot.sewer,
+        "nearby_landmarks": plot.nearby_landmarks,
+        "risk_notes": plot.risk_notes,
+    }
+
     return {
         "answer": answer,
         "sources": _source_references(chunks),
         "has_documents": bool(chunks),
         "route": question_route.value,
         "specialists": [specialist.value for specialist in specialists],
+        "missing_fields": missing_fields,
+        "plot_context": plot_context,
     }

@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.api import advisor, compare, plots, search, ask
+from app.api import advisor, compare, plots, search, ask, feedback
 
 app = FastAPI(title="SmartPlots API")
 
@@ -23,6 +23,7 @@ app.include_router(compare.router)
 app.include_router(advisor.router)
 app.include_router(search.router)
 app.include_router(ask.router)
+app.include_router(feedback.router)
 
 
 @app.get("/health")

@@ -1,9 +1,0 @@
-Downtown Investment Lot - Utility Status & Environmental Assessment
-Location: Central Dallas business district, Dallas, TX.
-
-Utility Availability & Grid Connections:
-- Electricity: 3-Phase commercial grid access is fully energized at the lot boundary. Provider: Oncor Electric Delivery.
-- Water Supply: City of Dallas municipal water main (8-inch line) runs directly beneath the adjacent street with active tap point.
-- Sewer/Wastewater: Active connection to municipal sewer system. Sewer line capacity is rated for high-density commercial/retail use.
-- Telecommunications: High-speed fiber-optic lines (AT&T & Spectrum) run along the frontage.
-- Environmental Risk: Zone X (minimal flood hazard area). Soil composition is highly stable clay, requiring deep pier foundation for buildings above 3 stories.
