@@ -194,7 +194,7 @@ export default function GoalForm({ goal, initialPrefs, onBack, onSubmit, loading
       <div className="h-px bg-[#E7D3CC]" />
 
       <p className="text-sm leading-6 text-slate-500">
-        Tell us what's important to you.
+        Tell us what&apos;s important to you.
       </p>
 
       {validationMessage && (

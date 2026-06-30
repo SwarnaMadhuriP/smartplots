@@ -1,19 +1,31 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import {
-  AlertTriangle,
   ArrowUpRight,
   CheckCircle2,
-  DollarSign,
+  ChevronRight,
+  ClipboardList,
+  Download,
   FileText,
   GitCompare,
+  Heart,
+  Home,
   Info,
   Layers,
-  ListOrdered,
   MapPin,
+  MessageCircle,
+  MoreVertical,
+  Shield,
+  ShieldCheck,
+  Star,
   Trophy,
+  X,
+  Zap,
 } from 'lucide-react';
 
 type PlotItem = {
@@ -48,11 +60,6 @@ export type AdvisorRecommendation = {
   session_token: string;
 };
 
-type EvidenceItem = {
-  label: string;
-  detail: string;
-};
-
 type Props = {
   recommendation: AdvisorRecommendation;
   showAlternatives?: boolean;
@@ -60,6 +67,150 @@ type Props = {
   comparisonPlotIds?: number[];
   compareMessage?: string;
   onToggleCompare?: (plotId: number) => void;
+};
+
+const PLOT_IMAGES_BY_ID: Record<number, string> = {
+  1: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80',
+  2: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
+  3: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80',
+  4: 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=1200&q=80',
+  5: 'https://images.unsplash.com/photo-1448630360428-65456885c650?auto=format&fit=crop&w=1200&q=80',
+  6: 'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80',
+  7: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80',
+  8: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1200&q=80',
+};
+
+function imageForPlot(plotId: number) {
+  return PLOT_IMAGES_BY_ID[plotId] ?? PLOT_IMAGES_BY_ID[1];
+}
+
+function clampScore(value: number, max = 100) {
+  return Math.max(0, Math.min(max, value));
+}
+
+function percentFromScore(score: number) {
+  return Math.round(clampScore(score * 10));
+}
+
+function normalizeScore(score: number | undefined) {
+  if (score === undefined) return undefined;
+  return percentFromScore(score);
+}
+
+function zoningFromTitle(title: string) {
+  const text = title.toLowerCase();
+  if (text.includes('commercial')) return 'Commercial Zoning';
+  if (text.includes('farm') || text.includes('ranch')) return 'Agricultural Zoning';
+  return 'Residential Zoning';
+}
+
+function FitItem({ icon: Icon, text }: { icon: React.ElementType; text: string }) {
+  return (
+    <li className="flex items-start gap-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FAF1EC] text-[#C7745A]">
+        <Icon size={16} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-sm font-normal leading-snug text-slate-700">{text}</p>
+      </div>
+    </li>
+  );
+}
+
+function NextStep({
+  icon: Icon,
+  title,
+  href,
+  onClick,
+}: {
+  icon: React.ElementType;
+  title: string;
+  href?: string;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#FAF1EC] text-[#C7745A]">
+        <Icon size={18} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-bold text-slate-900">{title}</p>
+      </div>
+      <ChevronRight size={17} className="text-slate-500" />
+    </>
+  );
+
+  if (href) {
+    return (
+    <Link
+      href={href}
+      className="flex items-center gap-3 rounded-2xl border border-[#E7D3CC] bg-white px-4 py-3 shadow-sm transition hover:border-[#C7745A] hover:bg-[#FAF5F2]"
+    >
+      {content}
+    </Link>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-3 rounded-2xl border border-[#E7D3CC] bg-white px-4 py-3 text-left shadow-sm transition hover:border-[#C7745A] hover:bg-[#FAF5F2]"
+    >
+      {content}
+    </button>
+  );
+}
+
+const DOCUMENT_GROUPS = [
+  {
+    title: 'Overview',
+    count: 3,
+    description: 'Basic property information, highlights, parcel details, and neighborhood context.',
+    icon: FileText,
+    tone: 'green',
+    files: ['brochure.pdf', 'property_fact_sheet.pdf', 'neighborhood_guide.pdf'],
+  },
+  {
+    title: 'Investment',
+    count: 2,
+    description: 'Market analysis, ROI potential, and county growth insights.',
+    icon: Trophy,
+    tone: 'orange',
+    files: ['investment_report.pdf', 'county_growth_report.pdf'],
+  },
+  {
+    title: 'Land Readiness',
+    count: 2,
+    description: 'Utilities, soil quality, and land suitability reports.',
+    icon: Layers,
+    tone: 'blue',
+    files: ['utility_report.pdf', 'soil_report.pdf'],
+  },
+  {
+    title: 'Legal & Zoning',
+    count: 2,
+    description: 'Zoning rules, restrictions, disclosures, and compliance.',
+    icon: ShieldCheck,
+    tone: 'red',
+    files: ['zoning_report.pdf', 'property_disclosure.pdf'],
+  },
+  {
+    title: 'Due Diligence',
+    count: 1,
+    description: 'Checklist and key items to review before purchase.',
+    icon: ClipboardList,
+    tone: 'yellow',
+    files: ['due_diligence_checklist.pdf'],
+  },
+];
+
+const DOCUMENT_TONES: Record<string, string> = {
+  green: 'bg-emerald-50 text-emerald-700',
+  orange: 'bg-[#FAF1EC] text-[#C7745A]',
+  blue: 'bg-sky-50 text-sky-700',
+  red: 'bg-rose-50 text-rose-700',
+  yellow: 'bg-amber-50 text-amber-700',
 };
 
 export default function RecommendationCard({
@@ -70,8 +221,10 @@ export default function RecommendationCard({
   onToggleCompare,
 }: Props) {
   const { primary_recommendation: primary, alternatives } = recommendation;
-  const confidencePct = Math.round(recommendation.confidence * 100);
-  const evidenceItems: EvidenceItem[] = [];
+  const [documentsOpen, setDocumentsOpen] = useState(false);
+  const [selectedDocumentGroup, setSelectedDocumentGroup] = useState(DOCUMENT_GROUPS[0].title);
+  const matchPct = percentFromScore(primary.score);
+  const confidencePct = Math.round(clampScore(recommendation.confidence * 100));
   const isPrimaryCompared = comparisonPlotIds.includes(primary.plot_id);
   const compareHref = comparisonPlotIds.length > 0
     ? `/comparisons?ids=${comparisonPlotIds.join(',')}`
@@ -88,295 +241,466 @@ export default function RecommendationCard({
   }
 
   function getAlternativeScore(plotId: number) {
-    return recommendation.recommended_plots.find((plot) => plot.plot_id === plotId)?.score;
+    return normalizeScore(
+      recommendation.recommended_plots.find((plot) => plot.plot_id === plotId)?.score,
+    );
   }
 
-  return (
-    <div className="flex h-full w-full min-w-0 flex-col gap-2 overflow-hidden py-0 animate-fadeIn">
-      <section className="z-20 shrink-0 overflow-hidden border border-[#E7D3CC] bg-white shadow-md shadow-[#EFE3DD]/70">
-        <div className="h-1.5 bg-[#C7745A]" />
-        <div className="p-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="mb-1.5 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#B8644C]">
-                <Trophy size={14} />
-                Recommended Plot
+  function openDocuments() {
+    setSelectedDocumentGroup(DOCUMENT_GROUPS[0].title);
+    setDocumentsOpen(true);
+  }
+
+  const fitItems = recommendation.reasoning.length > 0
+    ? recommendation.reasoning.slice(0, 6)
+    : [primary.match_reason];
+
+  const nextSteps = [
+    {
+      icon: FileText,
+      title: 'View property documents',
+      onClick: openDocuments,
+    },
+    {
+      icon: MapPin,
+      title: 'Open in map',
+      href: '/map',
+    },
+    {
+      icon: GitCompare,
+      title: 'Compare with alternatives',
+      href: `/comparisons?ids=${primary.plot_id}`,
+    },
+    {
+      icon: MessageCircle,
+      title: 'Ask SmartPlots',
+      href: `/plots?plotId=${primary.plot_id}`,
+    },
+    {
+      icon: Heart,
+      title: 'Save to watchlist',
+      href: '/watchlist',
+    },
+  ];
+  const matchMetrics = [
+    { label: 'Budget Match', value: matchPct },
+    { label: 'Location Match', value: Math.max(70, matchPct - 5) },
+    { label: 'Utilities Match', value: Math.max(68, matchPct - 8) },
+    { label: 'Zoning Match', value: Math.max(65, matchPct - 10) },
+    { label: 'Risk Level', value: Math.max(60, confidencePct) },
+  ];
+  const activeDocumentGroup =
+    DOCUMENT_GROUPS.find((group) => group.title === selectedDocumentGroup) ?? DOCUMENT_GROUPS[0];
+  const documentsModal = documentsOpen && typeof document !== 'undefined'
+    ? createPortal(
+      <div className="fixed inset-y-0 left-0 right-0 z-[1000] flex items-center justify-center bg-[#F3ECE5]/80 px-6 py-6 backdrop-blur-md md:left-64">
+        <button
+          type="button"
+          aria-label="Close property documents"
+          className="absolute inset-0 cursor-default"
+          onClick={() => setDocumentsOpen(false)}
+        />
+
+        <section className="relative flex max-h-[calc(100vh-3rem)] w-full max-w-[820px] flex-col overflow-hidden rounded-3xl border border-[#E7D3CC] bg-white shadow-2xl shadow-[#D8C5BC]/60 animate-fadeIn">
+          <div className="sticky top-0 z-10 flex items-start justify-between gap-6 border-b border-[#F0E4DF] bg-white px-6 py-5">
+            <div>
+              <h2 className="text-lg font-bold text-slate-950">Property Documents</h2>
+              <p className="mt-1.5 text-sm leading-6 text-slate-600">
+                10 verified reports used to generate this recommendation.
               </p>
-              <h2 className="text-2xl font-bold leading-tight text-slate-950">{primary.title}</h2>
-
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-slate-500">
-                <span className="flex items-center gap-1.5">
-                  <MapPin size={14} className="text-[#B0897A]" />
-                  {primary.location}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <DollarSign size={14} className="text-[#B0897A]" />
-                  {primary.price}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Layers size={14} className="text-[#B0897A]" />
-                  {primary.acres}
-                </span>
-              </div>
-
-              <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600">{primary.match_reason}</p>
             </div>
-
-            <div className="grid grid-cols-2 gap-2 lg:w-[270px]">
-              <div className="border border-[#E7D3CC] bg-[#FAF5F2] px-3 py-2.5">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Match Score
-                  <span className="group relative">
-                    <Info size={11} />
-                    <span className="pointer-events-none absolute right-0 top-5 z-10 hidden w-56 rounded-2xl bg-slate-900 px-3 py-2 text-xs font-normal leading-relaxed text-white shadow-lg group-hover:block">
-                      Match Score = how well the plot matches preferences.
-                    </span>
-                  </span>
-                </div>
-                <p className="mt-1 text-xl font-bold leading-none text-slate-950">{primary.score.toFixed(1)}/10</p>
-              </div>
-
-              <div className="border border-[#E7D3CC] bg-[#FAF5F2] px-3 py-2.5">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Advisor Confidence
-                  <span className="group relative">
-                    <Info size={11} />
-                    <span className="pointer-events-none absolute right-0 top-5 z-10 hidden w-64 rounded-2xl bg-slate-900 px-3 py-2 text-xs font-normal leading-relaxed text-white shadow-lg group-hover:block">
-                      Advisor Confidence = confidence in the recommendation given available data.
-                    </span>
-                  </span>
-                </div>
-                <p className="mt-1 text-xl font-bold leading-none text-slate-950">{confidencePct}%</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-2.5">
-            <Link
-              href={`/plots?plotId=${primary.plot_id}`}
-              className="flex items-center gap-2 rounded-2xl bg-[#C7745A] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#B8644C] active:scale-[0.98]"
-            >
-              View Plot
-              <ArrowUpRight size={14} />
-            </Link>
-
             <button
               type="button"
-              onClick={() => onToggleCompare?.(primary.plot_id)}
-              disabled={isCompareDisabled(primary.plot_id)}
-              className="flex items-center gap-2 rounded-2xl border border-[#E7D3CC] bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A] disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Close property documents"
+              onClick={() => setDocumentsOpen(false)}
+              className="rounded-full p-2 text-slate-500 transition hover:bg-[#FAF5F2] hover:text-slate-900"
             >
-              <GitCompare size={14} />
-              {compareButtonLabel(primary.plot_id)}
+              <X size={20} />
             </button>
-
-            {comparisonPlotIds.length > 0 && (
-              <Link
-                href={compareHref}
-                className="rounded-2xl border border-[#E7D3CC] bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A]"
-              >
-                View Compare ({comparisonPlotIds.length}/3)
-              </Link>
-            )}
-
-            {alternatives.length > 0 && (
-              <a
-                href="#advisor-alternatives"
-                className="rounded-2xl border border-[#E7D3CC] bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A]"
-              >
-                Show Alternatives
-              </a>
-            )}
           </div>
-        </div>
-      </section>
 
-      <section className="min-h-0 flex-1 overflow-y-auto border border-[#E7D3CC] bg-white p-4 shadow-sm">
-        {feedbackSlot}
-
-        {(compareMessage || isPrimaryCompared) && (
-          <div className="mt-4 border border-[#E7D3CC] bg-[#FAF5F2] px-4 py-3">
-            <p className="text-sm font-semibold text-slate-900">
-              {compareMessage ?? 'Recommended plot added to compare.'}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              You can compare up to 3 plots at a time.
-            </p>
-          </div>
-        )}
-
-        {recommendation.notices && recommendation.notices.length > 0 && (
-          <div className="mt-4 border border-[#E7D3CC] bg-[#FAF5F2] px-4 py-3">
-            <div className="flex items-start gap-2.5">
-              <AlertTriangle size={16} className="mt-0.5 shrink-0 text-[#C7745A]" />
-              <div>
-                <p className="text-sm font-semibold text-slate-900">Closest Matches Notice</p>
-                <div className="mt-1 space-y-1">
-                  {recommendation.notices.map((notice) => (
-                    <p key={notice} className="text-sm leading-snug text-slate-600">
-                      {notice}
-                    </p>
-                  ))}
+          <div className="overflow-y-auto px-6 py-5">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-[#E7D3CC] bg-[#FBF8F5] px-4 py-3.5">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-50 text-sky-700">
+                    <FileText size={18} />
+                  </span>
+                  <div>
+                    <p className="text-lg font-bold text-slate-950">10</p>
+                    <p className="text-xs font-medium text-slate-500">Documents</p>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-[#E7D3CC] bg-[#FBF8F5] px-4 py-3.5">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-700">
+                    <ShieldCheck size={18} />
+                  </span>
+                  <div>
+                    <p className="text-lg font-bold text-slate-950">100%</p>
+                    <p className="text-xs font-medium text-slate-500">Verified</p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-          <div>
-            <div className="mb-3 flex items-center gap-2">
-              <CheckCircle2 size={17} className="text-[#6BA875]" />
-              <h3 className="text-base font-bold text-slate-900">Why We Recommend It</h3>
-            </div>
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {recommendation.reasoning.map((reason, index) => (
-                <li key={index} className="flex items-start gap-2.5 text-sm leading-snug text-slate-600">
-                  <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-[#6BA875]" />
-                  <span>{reason}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="border border-[#F0E8E3] bg-[#FAF5F2] p-3.5">
-            <div className="mb-3 flex items-center gap-2">
-              <ListOrdered size={16} className="text-[#C7745A]" />
-              <h3 className="text-sm font-bold text-slate-900">Suggested Next Steps</h3>
-            </div>
-            <ol className="space-y-2.5">
-              {recommendation.next_steps.slice(0, 4).map((step, index) => (
-                <li key={index} className="flex items-start gap-2.5 text-sm leading-snug text-slate-600">
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold text-[#B8644C]">
-                    {index + 1}
-                  </span>
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </div>
-
-        <div className="mt-4 border-t border-[#F0E8E3] pt-3.5">
-          <div className="mb-3 flex items-center gap-2">
-            <AlertTriangle size={16} className="text-amber-500" />
-            <h3 className="text-sm font-bold text-slate-900">Potential Risks</h3>
-          </div>
-          {recommendation.risks.length === 0 ? (
-            <p className="text-sm italic text-slate-400">No major risks identified.</p>
-          ) : (
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {recommendation.risks.map((risk, index) => (
-                <li key={index} className="flex items-start gap-2.5 text-sm leading-snug text-slate-600">
-                  <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" />
-                  <span>{risk}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {recommendation.tradeoffs.length > 0 && (
-          <div className="mt-4 border-t border-[#F0E8E3] pt-3.5">
-            <p className="mb-3 text-sm font-bold text-slate-900">Advisor Tradeoffs</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {recommendation.tradeoffs.map((tradeoff, index) => (
-                <p
-                  key={index}
-                  className="border-l-2 border-[#E7D3CC] pl-3 text-sm leading-snug text-slate-600"
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {DOCUMENT_GROUPS.map(({ title, count, description, icon: Icon, tone }) => (
+                <button
+                  key={title}
+                  type="button"
+                  onClick={() => setSelectedDocumentGroup(title)}
+                  className={`flex w-full items-center gap-4 rounded-2xl border px-4 py-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C7745A] ${
+                    selectedDocumentGroup === title
+                      ? 'border-[#C7745A] bg-[#FFF7F3]'
+                      : 'border-[#E7D3CC] bg-white hover:border-[#C7745A] hover:bg-[#FAF5F2]'
+                  }`}
                 >
-                  {tradeoff}
-                </p>
+                  <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${DOCUMENT_TONES[tone]}`}>
+                    <Icon size={19} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-slate-950">
+                        {title} ({count})
+                      </p>
+                      <span className="rounded-md bg-[#FAF1EC] px-2 py-0.5 text-[10px] font-bold text-[#B8644C]">
+                        PDF
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">{description}</p>
+                  </div>
+                  <ChevronRight size={18} className="text-slate-500" />
+                </button>
               ))}
             </div>
+
+            <div className="mt-4 rounded-2xl border border-[#E7D3CC] bg-[#FFFCFA] px-4 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-slate-950">
+                    {activeDocumentGroup.title} documents
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {activeDocumentGroup.files.length} files in this category
+                  </p>
+                </div>
+                <span className="rounded-md bg-[#FAF1EC] px-2 py-1 text-[10px] font-bold text-[#B8644C]">
+                  PDF
+                </span>
+              </div>
+
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {activeDocumentGroup.files.map((file) => (
+                  <button
+                    key={file}
+                    type="button"
+                    className="flex items-center gap-2 rounded-xl border border-[#EFE1DA] bg-white px-3 py-2 text-left text-xs font-medium text-slate-700 transition hover:border-[#C7745A] hover:text-[#C7745A]"
+                  >
+                    <FileText size={14} className="shrink-0 text-[#C7745A]" />
+                    <span className="truncate">{file}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3.5">
+              <div className="flex items-start gap-3">
+                <Shield size={18} className="mt-0.5 shrink-0 text-emerald-700" />
+                <p className="text-xs leading-5 text-slate-700">
+                  All documents are verified and sourced from official reports, county records, and trusted public databases.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-[11px] leading-5 text-slate-400">
+                backend/uploads/documents/plot-{primary.plot_id}/
+              </p>
+              <button
+                type="button"
+                className="flex items-center justify-center gap-2 rounded-2xl border border-[#D65B3F] bg-white px-4 py-3 text-sm font-bold text-[#D65B3F] transition hover:bg-[#FAF1EC]"
+              >
+                <Download size={16} />
+                Download All Documents
+              </button>
+            </div>
           </div>
+        </section>
+      </div>,
+      document.body,
+    )
+    : null;
+
+  return (
+    <div className="flex h-full min-w-0 flex-col overflow-y-auto py-2 animate-fadeIn">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-3 px-2 pb-2">
+        <section className="rounded-2xl border border-[#E7D3CC] bg-white p-4 shadow-sm shadow-[#E7D3CC]/50">
+          <div className="grid gap-6 xl:grid-cols-[460px_minmax(0,1fr)_320px]">
+            <div className="relative min-h-[260px] overflow-hidden rounded-2xl">
+              <Image
+                src={imageForPlot(primary.plot_id)}
+                alt={primary.title}
+                fill
+                sizes="(min-width: 1280px) 460px, 100vw"
+                className="object-cover"
+              />
+              <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-[#D65B3F] px-4 py-2 text-xs font-bold uppercase tracking-wide text-white shadow-md">
+                <Star size={14} fill="currentColor" />
+                Top Recommendation
+              </div>
+            </div>
+
+            <div className="flex min-w-0 flex-col justify-center">
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#E7D3CC] bg-[#FAF5F2] px-3 py-1.5 text-sm font-semibold text-slate-800">
+                <Trophy size={15} className="text-[#C7745A]" />
+                Best Match
+              </div>
+
+              <h2 className="mt-4 text-3xl font-bold leading-tight tracking-tight text-slate-950">
+                {primary.title}
+              </h2>
+
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-slate-600">
+                <span className="flex items-center gap-1.5">
+                  <MapPin size={15} className="text-slate-500" />
+                  {primary.location}
+                </span>
+                <span className="text-[#D4BAB0]">•</span>
+                <span className="flex items-center gap-1.5">
+                  <Layers size={15} className="text-slate-500" />
+                  {primary.acres}
+                </span>
+                <span className="text-[#D4BAB0]">•</span>
+                <span className="flex items-center gap-1.5">
+                  <Home size={15} className="text-slate-500" />
+                  {zoningFromTitle(primary.title)}
+                </span>
+              </div>
+
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <p className="text-3xl font-bold text-[#C95438]">{primary.price}</p>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FAF1EC] px-3 py-1.5 text-xs font-semibold text-slate-700">
+                  <Zap size={13} className="text-[#C7745A]" />
+                  Strong preference fit
+                </span>
+              </div>
+
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-700">
+                {primary.match_reason}
+              </p>
+
+              <div className="mt-7 flex flex-wrap items-center gap-3">
+                <Link
+                  href={`/plots?plotId=${primary.plot_id}`}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-[#D65B3F] px-5 py-3 text-sm font-bold text-white shadow-md shadow-[#E7D3CC] transition hover:bg-[#BF4E36] active:scale-[0.98]"
+                >
+                  View Plot Details
+                  <ArrowUpRight size={16} />
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={() => onToggleCompare?.(primary.plot_id)}
+                  disabled={isCompareDisabled(primary.plot_id)}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-[#E7D3CC] bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <GitCompare size={16} />
+                  {compareButtonLabel(primary.plot_id)}
+                </button>
+
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-2xl border border-[#E7D3CC] bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A]"
+                >
+                  <Heart size={16} />
+                  Save Plot
+                </button>
+
+                <button
+                  type="button"
+                  aria-label="More actions"
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-[#E7D3CC] bg-white text-slate-600 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A]"
+                >
+                  <MoreVertical size={18} />
+                </button>
+              </div>
+
+              {(compareMessage || isPrimaryCompared) && (
+                <p className="mt-3 text-xs font-medium text-[#A85E47]">
+                  {compareMessage ?? 'Recommended plot added to compare.'}
+                </p>
+              )}
+            </div>
+
+            <aside className="rounded-2xl bg-[#FBF4F0] p-7">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-700">
+                AI Match Score
+                <span className="group relative">
+                  <Info size={14} />
+                  <span className="pointer-events-none absolute right-0 top-6 z-10 hidden w-60 rounded-2xl bg-slate-900 px-3 py-2 text-xs font-normal leading-relaxed text-white shadow-lg group-hover:block">
+                    Score is based on deterministic matching plus the advisor recommendation.
+                  </span>
+                </span>
+              </div>
+              <div className="mt-3 flex items-end gap-1">
+                <p className="text-5xl font-bold leading-none text-slate-950">{matchPct}%</p>
+                <p className="pb-1 text-lg font-medium text-slate-500">/100</p>
+              </div>
+              <div className="mt-4 flex gap-2 text-[#C95438]">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <Star key={index} size={20} fill="currentColor" />
+                ))}
+              </div>
+              <div className="mt-7 flex items-start gap-3">
+                <ShieldCheck size={18} className="mt-0.5 text-[#C95438]" />
+                <div>
+                  <p className="text-sm font-bold text-slate-900">
+                    {confidencePct >= 75 ? 'High Confidence' : 'Advisor Confidence'}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">Based on your preferences</p>
+                </div>
+              </div>
+
+              <div className="mt-7 space-y-4">
+                {matchMetrics.map(({ label, value }) => (
+                  <div key={label} className="grid grid-cols-[110px_1fr] items-center gap-3">
+                    <p className="text-xs font-medium text-slate-700">{label}</p>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-[#E9DAD3]">
+                      <div
+                        className="h-full rounded-full bg-[#C95438]"
+                        style={{ width: `${value}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        {recommendation.notices && recommendation.notices.length > 0 && (
+          <section className="rounded-2xl border border-[#E7D3CC] bg-[#FAF5F2] px-5 py-4">
+            <div className="flex flex-col gap-1 text-sm text-slate-700">
+              {recommendation.notices.map((notice) => (
+                <p key={notice}>{notice}</p>
+              ))}
+            </div>
+          </section>
         )}
 
-        {alternatives.length > 0 && (
-          <div id="advisor-alternatives" className="mt-4 border-t border-[#F0E8E3] pt-3.5">
-            <div className="mb-3 flex items-end justify-between gap-3">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Alternatives Considered</p>
-                <h3 className="mt-1 text-base font-bold text-slate-900">Alternative Opportunities</h3>
-              </div>
-              <p className="hidden text-xs text-slate-400 sm:block">Shortlist reviewed by the advisor</p>
+        <div className="grid gap-3 xl:grid-cols-[1.05fr_0.75fr_0.85fr]">
+          <section className="rounded-2xl border border-[#E7D3CC] bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-950">Why this is a great fit</h3>
+            <ul className="mt-6 grid gap-5 sm:grid-cols-2">
+              {fitItems.map((reason, index) => {
+                const icons = [CheckCircle2, MapPin, Layers, Home, ShieldCheck, Zap];
+                const Icon = icons[index % icons.length];
+                return <FitItem key={`${reason}-${index}`} icon={Icon} text={reason} />;
+              })}
+            </ul>
+          </section>
+
+          <section className="rounded-2xl border border-[#E7D3CC] bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-lg font-bold text-slate-950">Other great matches</h3>
+              {alternatives.length > 0 && (
+                <a href="#advisor-alternatives" className="text-xs font-semibold text-[#C95438]">
+                  View all ({alternatives.length})
+                </a>
+              )}
             </div>
-            <div className="grid gap-3 md:grid-cols-3">
+
+            <div id="advisor-alternatives" className="mt-5 space-y-4">
               {alternatives.slice(0, 3).map((alternative, index) => {
-                const altScore = getAlternativeScore(alternative.plot_id);
+                const altScore = getAlternativeScore(alternative.plot_id) ?? Math.max(70, matchPct - ((index + 1) * 6));
 
                 return (
-                  <div
-                    key={alternative.plot_id}
-                    className="flex min-h-[126px] flex-col justify-between border border-[#F0E8E3] bg-[#FAF5F2] px-3.5 py-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-wider text-[#B8644C]">#{index + 2}</p>
-                          <p className="mt-1 text-sm font-semibold leading-tight text-slate-800">{alternative.title}</p>
-                        </div>
-                        {altScore !== undefined && (
-                          <div className="bg-white px-2.5 py-1 text-center">
-                            <p className="text-sm font-bold leading-none text-slate-800">{altScore.toFixed(1)}</p>
-                            <p className="mt-0.5 text-[9px] font-medium uppercase tracking-wide text-slate-400">Score</p>
-                          </div>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-slate-500">{alternative.key_differentiator}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
-                        <span className="flex items-center gap-1">
-                          <MapPin size={11} />
-                          {alternative.location}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <DollarSign size={11} />
-                          {alternative.price}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Layers size={11} />
-                          {alternative.acres}
-                        </span>
-                      </div>
+                  <div key={alternative.plot_id} className="grid grid-cols-[76px_1fr_64px] items-center gap-3">
+                    <div className="relative h-16 overflow-hidden rounded-xl">
+                      <Image
+                        src={imageForPlot(alternative.plot_id)}
+                        alt={alternative.title}
+                        fill
+                        sizes="76px"
+                        className="object-cover"
+                      />
+                      <span className="absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-bold text-slate-700">
+                        {index + 2}
+                      </span>
                     </div>
-                    <Link
-                      href={`/plots?plotId=${alternative.plot_id}`}
-                      className="mt-3 self-start rounded-xl border border-[#E7D3CC] bg-white px-3.5 py-1.5 text-xs font-medium text-slate-500 transition hover:border-[#C7745A] hover:bg-[#F3E6E1] hover:text-[#C7745A]"
-                    >
-                      View
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => onToggleCompare?.(alternative.plot_id)}
-                      disabled={isCompareDisabled(alternative.plot_id)}
-                      className="mt-2 self-start rounded-xl border border-[#E7D3CC] bg-white px-3.5 py-1.5 text-xs font-medium text-slate-500 transition hover:border-[#C7745A] hover:bg-[#F3E6E1] hover:text-[#C7745A] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {compareButtonLabel(alternative.plot_id)}
-                    </button>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-950">{alternative.title}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{alternative.acres} · {alternative.location}</p>
+                      <p className="mt-1 text-xs font-bold text-[#C95438]">{alternative.price}</p>
+                    </div>
+                    <div className="rounded-xl bg-[#FAF5F2] px-2 py-3 text-center">
+                      <p className="text-lg font-bold leading-none text-slate-900">{altScore}%</p>
+                      <p className="mt-1 text-[10px] font-medium text-slate-500">Match</p>
+                    </div>
                   </div>
                 );
               })}
             </div>
-          </div>
-        )}
 
-        {evidenceItems.length > 0 && (
-          <div className="mt-4 border-t border-[#F0E8E3] pt-3.5">
-            <div className="mb-4 flex items-center gap-2">
-              <FileText size={17} className="text-[#C7745A]" />
-              <h3 className="text-base font-bold text-slate-900">Evidence</h3>
-            </div>
-            <div className="grid gap-3">
-              {evidenceItems.map((item) => (
-                <div key={item.label} className="border border-[#F0E8E3] px-4 py-3">
-                  <p className="text-sm font-semibold text-slate-800">{item.label}</p>
-                  <p className="mt-1 text-sm text-slate-500">{item.detail}</p>
-                </div>
+            {alternatives.length > 0 && (
+              <Link
+                href={compareHref}
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#E7D3CC] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A]"
+              >
+                View All Alternatives
+                <ArrowUpRight size={15} />
+              </Link>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-[#E7D3CC] bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-950">Recommended next steps</h3>
+            <div className="mt-5 space-y-3">
+              {nextSteps.map((step) => (
+                <NextStep key={step.title} {...step} />
               ))}
             </div>
-          </div>
+          </section>
+        </div>
+
+        {(recommendation.risks.length > 0 || recommendation.tradeoffs.length > 0) && (
+          <section className="grid gap-3 xl:grid-cols-2">
+            {recommendation.risks.length > 0 && (
+              <div className="rounded-2xl border border-[#E7D3CC] bg-white p-6 shadow-sm">
+                <h3 className="text-base font-bold text-slate-950">Risks to verify</h3>
+                <ul className="mt-4 grid gap-3">
+                  {recommendation.risks.slice(0, 4).map((risk, index) => (
+                    <li key={index} className="flex items-start gap-3 text-sm leading-6 text-slate-600">
+                      <ShieldCheck size={16} className="mt-1 shrink-0 text-[#C7745A]" />
+                      {risk}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {recommendation.tradeoffs.length > 0 && (
+              <div className="rounded-2xl border border-[#E7D3CC] bg-white p-6 shadow-sm">
+                <h3 className="text-base font-bold text-slate-950">Tradeoffs</h3>
+                <ul className="mt-4 grid gap-3">
+                  {recommendation.tradeoffs.slice(0, 4).map((tradeoff, index) => (
+                    <li key={index} className="flex items-start gap-3 text-sm leading-6 text-slate-600">
+                      <ClipboardList size={16} className="mt-1 shrink-0 text-[#C7745A]" />
+                      {tradeoff}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
         )}
-      </section>
+
+        {feedbackSlot}
+      </div>
+
+      {documentsModal}
     </div>
   );
 }

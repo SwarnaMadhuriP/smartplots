@@ -1,6 +1,15 @@
 'use client';
 
-import { ThumbsUp, DollarSign, ShieldOff, MapPinOff, Maximize2, LayoutList, RotateCcw } from 'lucide-react';
+import {
+  DollarSign,
+  LayoutList,
+  MapPin,
+  Maximize2,
+  RotateCcw,
+  ShieldCheck,
+  SlidersHorizontal,
+  Zap,
+} from 'lucide-react';
 
 export type FeedbackOption =
   | 'good_recommendation'
@@ -16,29 +25,17 @@ type FeedbackDef = {
   key: FeedbackOption;
   label: string;
   icon: React.ElementType;
-  style: 'positive' | 'neutral' | 'negative';
 };
 
 const FEEDBACK_OPTIONS: FeedbackDef[] = [
-  { key: 'good_recommendation', label: 'Looks Good', icon: ThumbsUp, style: 'positive' },
-  { key: 'too_expensive', label: 'Too Expensive', icon: DollarSign, style: 'negative' },
-  { key: 'too_risky', label: 'Too Risky', icon: ShieldOff, style: 'negative' },
-  { key: 'need_more_acreage', label: 'Need More Acreage', icon: Maximize2, style: 'neutral' },
-  { key: 'wrong_location', label: 'Different Location', icon: MapPinOff, style: 'negative' },
-  { key: 'show_alternatives', label: 'Show Alternatives', icon: LayoutList, style: 'neutral' },
+  { key: 'too_expensive', label: 'Budget', icon: DollarSign },
+  { key: 'wrong_location', label: 'Location', icon: MapPin },
+  { key: 'need_more_acreage', label: 'Acreage', icon: Maximize2 },
+  { key: 'need_utilities', label: 'Utilities', icon: Zap },
+  { key: 'prefer_lower_price_per_acre', label: 'Value', icon: SlidersHorizontal },
+  { key: 'too_risky', label: 'Lower Risk', icon: ShieldCheck },
+  { key: 'show_alternatives', label: 'Show Alternatives', icon: LayoutList },
 ];
-
-const BASE_STYLES: Record<string, string> = {
-  positive: 'border-[#C0DCBF] text-[#4A7E55] hover:bg-[#EDF5EF]',
-  neutral:  'border-[#E7D3CC] text-slate-600 hover:border-[#C7745A] hover:text-[#C7745A] hover:bg-[#FAF5F2]',
-  negative: 'border-[#EACAC5] text-[#B05040] hover:bg-[#FAF0EE]',
-};
-
-const ACTIVE_STYLES: Record<string, string> = {
-  positive: 'border-[#6BA875] bg-[#EDF5EF] text-[#4A7E55]',
-  neutral:  'border-[#C7745A] bg-[#F3E6E1] text-[#C7745A]',
-  negative: 'border-[#C7745A] bg-[#F3E6E1] text-[#C7745A]',
-};
 
 type Props = {
   onFeedback: (option: FeedbackOption) => void;
@@ -49,44 +46,51 @@ type Props = {
 
 export default function FeedbackBar({ onFeedback, onRestart, loading, activeFeedback }: Props) {
   return (
-    <div className="flex w-full flex-col gap-2.5 bg-[#FAF5F2] px-4 py-3.5">
+    <section className="rounded-2xl border border-[#E7D3CC] bg-white px-5 py-4 shadow-sm">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div>
+          <p className="text-base font-bold text-slate-950">Want to refine this recommendation?</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Tell us what matters most and we&apos;ll find an even better match.
+          </p>
+        </div>
 
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-slate-800">Was this recommendation helpful?</p>
-        <button
-          onClick={onRestart}
-          disabled={loading}
-          className="flex items-center gap-1.5 text-xs text-slate-400 transition-colors hover:text-[#C7745A] disabled:opacity-40"
-        >
-          <RotateCcw size={11} />
-          Start over
-        </button>
-      </div>
+        <div className="flex flex-wrap gap-2.5">
+          {FEEDBACK_OPTIONS.map(({ key, label, icon: Icon }) => {
+            const isActive = activeFeedback === key;
+            const isLoading = loading && isActive;
+            return (
+              <button
+                key={key}
+                id={`feedback-${key}`}
+                onClick={() => onFeedback(key)}
+                disabled={loading}
+                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                  isActive
+                    ? 'border-[#C7745A] bg-[#F8E8E1] text-[#C7745A]'
+                    : 'border-[#E7D3CC] bg-white text-slate-700 hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A]'
+                }`}
+              >
+                {isLoading ? (
+                  <span className="h-4 w-4 rounded-full border-2 border-current/30 border-t-current animate-spin" />
+                ) : (
+                  <Icon size={16} />
+                )}
+                {label}
+              </button>
+            );
+          })}
 
-      <div className="flex flex-wrap gap-2">
-        {FEEDBACK_OPTIONS.map(({ key, label, icon: Icon, style }) => {
-          const isActive = activeFeedback === key;
-          const isLoading = loading && isActive;
-          return (
-            <button
-              key={key}
-              id={`feedback-${key}`}
-              onClick={() => onFeedback(key)}
-              disabled={loading}
-              className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all bg-white disabled:opacity-50 ${
-                isActive ? ACTIVE_STYLES[style] : BASE_STYLES[style]
-              }`}
-            >
-              {isLoading ? (
-                <span className="h-3 w-3 rounded-full border-2 border-current/30 border-t-current animate-spin" />
-              ) : (
-                <Icon size={13} />
-              )}
-              {label}
-            </button>
-          );
-        })}
+          <button
+            onClick={onRestart}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-full border border-[#E7D3CC] bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <RotateCcw size={16} />
+            Start Over
+          </button>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
