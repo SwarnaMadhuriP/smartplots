@@ -1,4 +1,5 @@
 import json
+from typing import cast
 
 from google.genai import types
 from pydantic import BaseModel
@@ -52,13 +53,16 @@ def apply_system_scores_to_result(
     alternative plot entries into `recommended_plots` so the frontend can display
     real alternative match percentages instead of estimating them.
     """
-    score_by_id = {int(plot.id): float(score) for plot, score in top_plots}
+    score_by_id = {cast(int, plot.id): score for plot, score in top_plots}
 
     def apply_score(item: dict | None) -> None:
         if not isinstance(item, dict):
             return
         try:
-            plot_id = int(item.get("plot_id"))
+            raw_id = item.get("plot_id")
+            if raw_id is None:
+                return
+            plot_id = int(raw_id)
         except (TypeError, ValueError):
             return
         if plot_id in score_by_id:

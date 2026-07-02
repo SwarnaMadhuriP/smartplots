@@ -118,6 +118,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
+from typing import cast
 
 from google.genai import types
 
@@ -357,8 +358,8 @@ def preference_context_node(state: WorkflowState) -> WorkflowState:
 
     # Detect budget-tight condition: budget is set and < 25th percentile of catalog prices
     if state.preferences.budget_max is not None:
-        prices = sorted(p.price for p in state.plots)
-        p25 = prices[max(0, len(prices) // 4)]
+        prices = sorted(cast(float, p.price) for p in state.plots)
+        p25: float = prices[max(0, len(prices) // 4)]
         state.budget_tight = state.preferences.budget_max < p25
 
     # Flag complex goals that warrant specialist review regardless of score
@@ -883,7 +884,7 @@ def document_intelligence_node(state: WorkflowState) -> WorkflowState:
         return state
 
     try:
-        chunks = retrieve_plot_documents(plot_id=top_plot.id, question=goal_question)
+        chunks = retrieve_plot_documents(plot_id=cast(int, top_plot.id), question=goal_question)
         state.specialist_analysis.documents = chunks  # type: ignore[union-attr]
         logger.info(
             "[SpecialistPanel] document_intelligence_node ✓ — retrieved %d chunk(s) for plot #%s",
