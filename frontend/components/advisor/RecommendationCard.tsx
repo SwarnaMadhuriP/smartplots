@@ -148,12 +148,12 @@ function NextStep({
 
   if (href) {
     return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 rounded-2xl border border-[#E7D3CC] bg-white px-4 py-3 shadow-sm transition hover:border-[#C7745A] hover:bg-[#FAF5F2]"
-    >
-      {content}
-    </Link>
+      <Link
+        href={href}
+        className="flex items-center gap-3 rounded-2xl border border-[#E7D3CC] bg-white px-4 py-3 shadow-sm transition hover:border-[#C7745A] hover:bg-[#FAF5F2]"
+      >
+        {content}
+      </Link>
     );
   }
 
@@ -172,7 +172,7 @@ const DOCUMENT_GROUPS = [
   {
     title: 'Overview',
     count: 3,
-    description: 'Basic property information, highlights, parcel details, and neighborhood context.',
+    description: 'Basic plot information, key highlights, and nearby area insights.',
     icon: FileText,
     tone: 'green',
     files: ['brochure.pdf', 'property_fact_sheet.pdf', 'neighborhood_guide.pdf'],
@@ -186,7 +186,7 @@ const DOCUMENT_GROUPS = [
     files: ['investment_report.pdf', 'county_growth_report.pdf'],
   },
   {
-    title: 'Land Readiness',
+    title: 'Plot Readiness',
     count: 2,
     description: 'Utilities, soil quality, and land suitability reports.',
     icon: Layers,
@@ -219,6 +219,8 @@ const DOCUMENT_TONES: Record<string, string> = {
   yellow: 'bg-amber-50 text-amber-700',
 };
 
+const API_BASE = process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL ?? '';
+
 export default function RecommendationCard({
   recommendation,
   showAlternatives = false,
@@ -237,11 +239,14 @@ export default function RecommendationCard({
     .filter((score): score is number => Number.isFinite(score))
     .sort((a, b) => b - a);
   const fallbackTopScore = primary.score;
-  const nextBestScore = sortedScores.find((score) => score < fallbackTopScore);
+  const nextBestScore = sortedScores[1];
   const fallbackScoreGap = nextBestScore === undefined ? fallbackTopScore : fallbackTopScore - nextBestScore;
   const trace = recommendation.decision_trace;
   const topScore = trace?.top_score ?? fallbackTopScore;
   const scoreGap = trace?.score_gap ?? fallbackScoreGap;
+  const scoreGapText = Math.abs(scoreGap) < 0.05
+    ? 'Tied with the next best match'
+    : `+${scoreGap.toFixed(1)} over next best plot`;
   const decisionPath = trace?.route === 'specialist_review'
     ? 'Specialist Review'
     : 'Fast Recommendation';
@@ -257,34 +262,38 @@ export default function RecommendationCard({
     setDocumentsOpen(true);
   }
 
+  function documentHref(file: string) {
+    return `${API_BASE}/uploads/documents/plot-${primary.plot_id}/${file}`;
+  }
+
   const fitItems = recommendation.reasoning.length > 0
     ? recommendation.reasoning.slice(0, 6)
     : [primary.match_reason];
 
   const nextSteps = [
     {
-      icon: FileText,
-      title: 'View property documents',
-      onClick: openDocuments,
-    },
-    {
-      icon: MapPin,
-      title: 'Open in map',
-      href: '/map',
-    },
-    {
-      icon: GitCompare,
-      title: 'Compare with alternatives',
-      href: `/comparisons?ids=${primary.plot_id}`,
-    },
-    {
       icon: MessageCircle,
       title: 'Ask SmartPlots',
       href: `/plots?plotId=${primary.plot_id}`,
     },
     {
+      icon: FileText,
+      title: 'Review Plot Documents',
+      onClick: openDocuments,
+    },
+    {
+      icon: MapPin,
+      title: 'Explore on Map',
+      href: '/map',
+    },
+    {
+      icon: GitCompare,
+      title: 'Compare Alternatives',
+      href: `/comparisons?ids=${primary.plot_id}`,
+    },
+    {
       icon: Heart,
-      title: 'Save to watchlist',
+      title: 'Save to Watchlist',
       href: '/watchlist',
     },
   ];
@@ -303,9 +312,9 @@ export default function RecommendationCard({
         <section className="relative flex max-h-[calc(100vh-3rem)] w-full max-w-[820px] flex-col overflow-hidden rounded-3xl border border-[#E7D3CC] bg-white shadow-2xl shadow-[#D8C5BC]/60 animate-fadeIn">
           <div className="sticky top-0 z-10 flex items-start justify-between gap-6 border-b border-[#F0E4DF] bg-white px-6 py-5">
             <div>
-              <h2 className="text-lg font-bold text-slate-950">Property Documents</h2>
+              <h2 className="text-lg font-bold text-slate-950">Plot Documents</h2>
               <p className="mt-1.5 text-sm leading-6 text-slate-600">
-                10 verified reports used to generate this recommendation.
+                10 verified reports used to analyze this plot.
               </p>
             </div>
             <button
@@ -350,11 +359,10 @@ export default function RecommendationCard({
                   key={title}
                   type="button"
                   onClick={() => setSelectedDocumentGroup(title)}
-                  className={`flex w-full items-center gap-4 rounded-2xl border px-4 py-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C7745A] ${
-                    selectedDocumentGroup === title
-                      ? 'border-[#C7745A] bg-[#FFF7F3]'
-                      : 'border-[#E7D3CC] bg-white hover:border-[#C7745A] hover:bg-[#FAF5F2]'
-                  }`}
+                  className={`flex w-full items-center gap-4 rounded-2xl border px-4 py-4 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C7745A] ${selectedDocumentGroup === title
+                    ? 'border-[#C7745A] bg-[#FFF7F3]'
+                    : 'border-[#E7D3CC] bg-white hover:border-[#C7745A] hover:bg-[#FAF5F2]'
+                    }`}
                 >
                   <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${DOCUMENT_TONES[tone]}`}>
                     <Icon size={19} />
@@ -392,14 +400,15 @@ export default function RecommendationCard({
 
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {activeDocumentGroup.files.map((file) => (
-                  <button
+                  <a
                     key={file}
-                    type="button"
+                    href={documentHref(file)}
+                    download
                     className="flex items-center gap-2 rounded-xl border border-[#EFE1DA] bg-white px-3 py-2 text-left text-xs font-medium text-slate-700 transition hover:border-[#C7745A] hover:text-[#C7745A]"
                   >
                     <FileText size={14} className="shrink-0 text-[#C7745A]" />
                     <span className="truncate">{file}</span>
-                  </button>
+                  </a>
                 ))}
               </div>
             </div>
@@ -413,10 +422,7 @@ export default function RecommendationCard({
               </div>
             </div>
 
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-[11px] leading-5 text-slate-400">
-                backend/uploads/documents/plot-{primary.plot_id}/
-              </p>
+            <div className="mt-5 flex justify-end">
               <button
                 type="button"
                 className="flex items-center justify-center gap-2 rounded-2xl border border-[#D65B3F] bg-white px-4 py-3 text-sm font-bold text-[#D65B3F] transition hover:bg-[#FAF1EC]"
@@ -473,9 +479,6 @@ export default function RecommendationCard({
                 <h2 className="mt-2 text-2xl font-bold leading-tight text-slate-950">
                   {selectedAlternative.title}
                 </h2>
-                <p className="mt-2 text-sm font-semibold text-slate-600">
-                  Score: {selectedAlternativeRawScore === undefined ? 'N/A' : `${selectedAlternativeRawScore.toFixed(1)} / 10`}
-                </p>
               </div>
               <button
                 type="button"
@@ -501,6 +504,10 @@ export default function RecommendationCard({
               <span className="flex items-center gap-1.5">
                 <Home size={15} className="text-slate-500" />
                 {zoningFromTitle(selectedAlternative.title)}
+              </span>
+              <span className="text-[#D4BAB0]">•</span>
+              <span className="text-slate-700">
+                ID: {selectedAlternative.plot_id}
               </span>
             </div>
 
@@ -530,7 +537,6 @@ export default function RecommendationCard({
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#D65B3F] px-5 text-sm font-bold text-white shadow-md shadow-[#E7D3CC] transition hover:bg-[#BF4E36] active:scale-[0.98]"
               >
                 View Plot Details
-                <ArrowUpRight size={16} />
               </Link>
               <Link
                 href={`/plots?plotId=${selectedAlternative.plot_id}`}
@@ -567,10 +573,6 @@ export default function RecommendationCard({
             </div>
 
             <div className="flex min-w-0 flex-col justify-center">
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#E7D3CC] bg-[#FAF5F2] px-3 py-1.5 text-sm font-semibold text-slate-800">
-                <Trophy size={15} className="text-[#C7745A]" />
-                Best Match
-              </div>
 
               <h2 className="mt-4 text-3xl font-bold leading-tight tracking-tight text-slate-950">
                 {primary.title}
@@ -591,16 +593,11 @@ export default function RecommendationCard({
                   <Home size={15} className="text-slate-500" />
                   {zoningFromTitle(primary.title)}
                 </span>
-              </div>
-
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <p className="text-3xl font-bold text-[#C95438]">{primary.price}</p>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FAF1EC] px-3 py-1.5 text-xs font-semibold text-slate-700">
-                  <Zap size={13} className="text-[#C7745A]" />
-                  Strong preference fit
+                <span className="text-[#D4BAB0]">•</span>
+                <span className="text-slate-700">
+                  ID: {primary.plot_id}
                 </span>
               </div>
-
               <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-700">
                 {primary.match_reason}
               </p>
@@ -611,7 +608,6 @@ export default function RecommendationCard({
                   className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#D65B3F] px-5 text-sm font-bold text-white shadow-md shadow-[#E7D3CC] transition hover:bg-[#BF4E36] active:scale-[0.98]"
                 >
                   View Plot Details
-                  <ArrowUpRight size={16} />
                 </Link>
               </div>
             </div>
@@ -624,10 +620,10 @@ export default function RecommendationCard({
                 <p className="text-5xl font-bold leading-none text-slate-950">{matchPct}</p>
                 <p className="pb-1 text-lg font-medium text-slate-500">/100</p>
               </div>
-              <div className="mt-7 grid gap-5 border-t border-[#E7D3CC] pt-5">
+              <div className="mt-4 grid gap-4 border-t border-[#E7D3CC] pt-4">
                 <div className="space-y-2">
                   <p className="text-xs font-bold uppercase tracking-wide text-slate-700">Decision Path</p>
-                  <div className="inline-flex min-h-9 items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-bold text-slate-900">
+                  <div className="inline-flex min-h-9 items-center gap-2 py-2 text-sm font-bold text-slate-900">
                     <Zap size={15} className="text-[#C95438]" />
                     {decisionPath}
                   </div>
@@ -641,7 +637,7 @@ export default function RecommendationCard({
                 <div className="space-y-2">
                   <p className="text-xs font-bold uppercase tracking-wide text-slate-700">Score Gap</p>
                   <p className="min-h-9 py-2 text-sm font-bold text-slate-900">
-                    +{scoreGap.toFixed(1)} over next best plot
+                    {scoreGapText}
                   </p>
                 </div>
               </div>
@@ -661,7 +657,7 @@ export default function RecommendationCard({
 
         <div className="grid gap-3 xl:grid-cols-[1.05fr_0.75fr_0.85fr]">
           <section className="rounded-2xl border border-[#E7D3CC] bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-950">Why this is a great fit</h3>
+            <h3 className="text-lg font-bold text-slate-950">Why SmartPlots Recommends This Plot</h3>
             <ul className="mt-6 grid gap-5 sm:grid-cols-2">
               {fitItems.map((reason, index) => {
                 const icons = [CheckCircle2, MapPin, Layers, Home, ShieldCheck, Zap];
@@ -673,7 +669,7 @@ export default function RecommendationCard({
 
           <section className="rounded-2xl border border-[#E7D3CC] bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-lg font-bold text-slate-950">Other great matches</h3>
+              <h3 className="text-lg font-bold text-slate-950">Other Great Matches</h3>
               {alternatives.length > visibleAlternatives.length && (
                 <button
                   type="button"
@@ -710,7 +706,7 @@ export default function RecommendationCard({
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold text-slate-950">{alternative.title}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">{alternative.acres} · {alternative.location}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{alternative.acres} · {alternative.location} · ID: {alternative.plot_id}</p>
                       <p className="mt-1 text-xs font-bold text-[#C95438]">{alternative.price}</p>
                     </div>
                     <div className="rounded-xl bg-[#FAF5F2] px-2 py-3 text-center">
@@ -737,7 +733,7 @@ export default function RecommendationCard({
           </section>
 
           <section className="rounded-2xl border border-[#E7D3CC] bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-950">Recommended next steps</h3>
+            <h3 className="text-lg font-bold text-slate-950">Continue Your Evaluation</h3>
             <div className="mt-5 space-y-3">
               {nextSteps.map((step) => (
                 <NextStep key={step.title} {...step} />
@@ -750,7 +746,7 @@ export default function RecommendationCard({
           <section className="grid gap-3 xl:grid-cols-2">
             {recommendation.risks.length > 0 && (
               <div className="rounded-2xl border border-[#E7D3CC] bg-white p-6 shadow-sm">
-                <h3 className="text-base font-bold text-slate-950">Risks to verify</h3>
+                <h3 className="text-base font-bold text-slate-950">Risks to Verify</h3>
                 <ul className="mt-4 grid gap-3">
                   {recommendation.risks.slice(0, 4).map((risk, index) => (
                     <li key={index} className="flex items-start gap-3 text-sm leading-6 text-slate-600">
@@ -764,7 +760,7 @@ export default function RecommendationCard({
 
             {recommendation.tradeoffs.length > 0 && (
               <div className="rounded-2xl border border-[#E7D3CC] bg-white p-6 shadow-sm">
-                <h3 className="text-base font-bold text-slate-950">Tradeoffs</h3>
+                <h3 className="text-base font-bold text-slate-950">Trade-Offs</h3>
                 <ul className="mt-4 grid gap-3">
                   {recommendation.tradeoffs.slice(0, 4).map((tradeoff, index) => (
                     <li key={index} className="flex items-start gap-3 text-sm leading-6 text-slate-600">

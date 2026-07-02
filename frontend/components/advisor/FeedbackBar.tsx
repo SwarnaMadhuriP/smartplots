@@ -49,7 +49,7 @@ export default function FeedbackBar({ onFeedback, onRestart, loading, activeFeed
     <section className="rounded-2xl border border-[#E7D3CC] bg-white px-5 py-4 shadow-sm">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
-          <p className="text-base font-bold text-slate-950">Want to refine this recommendation?</p>
+          <p className="text-base font-bold text-slate-950">Refine Your Recommendation</p>
           <p className="mt-1 text-sm text-slate-500">
             Tell us what matters most and we&apos;ll find an even better match.
           </p>
@@ -65,11 +65,10 @@ export default function FeedbackBar({ onFeedback, onRestart, loading, activeFeed
                 id={`feedback-${key}`}
                 onClick={() => onFeedback(key)}
                 disabled={loading}
-                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
-                  isActive
+                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${isActive
                     ? 'border-[#C7745A] bg-[#F8E8E1] text-[#C7745A]'
                     : 'border-[#E7D3CC] bg-white text-slate-700 hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A]'
-                }`}
+                  }`}
               >
                 {isLoading ? (
                   <span className="h-4 w-4 rounded-full border-2 border-current/30 border-t-current animate-spin" />
