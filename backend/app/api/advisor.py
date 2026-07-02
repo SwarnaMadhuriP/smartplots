@@ -10,10 +10,14 @@ from app.advisor.feedback_mapper import (
     update_session_recommendation,
 )
 from app.advisor.recommendation_service import (
-    run_goal_recommendation,
-    run_refine_recommendation,
+    # ADK 2.0 graph workflow entry points — replace direct service calls.
+    # The originals (run_goal_recommendation, run_refine_recommendation) remain
+    # in recommendation_service.py for reference and backward compatibility.
+    run_goal_recommendation_via_workflow,
+    run_refine_recommendation_via_workflow,
 )
 from app.advisor.schemas import (
+    AdvisorDecisionTrace,
     AdvisorRecommendation,
     AlternativeItem,
     FeedbackRequest,
@@ -45,7 +49,10 @@ def advisor_recommend(request: RecommendRequest, db: Session = Depends(get_db)):
     notices = advisor_preflight_notices(plots, request.goal, request.preferences)
 
     try:
-        result = run_goal_recommendation(
+        # ADK 2.0 graph workflow — routes through fast_recommendation or
+        # specialist_review before calling Gemini. Debug logs show route_taken,
+        # top_score, score_gap, and reason_for_route (never sent to frontend).
+        result = run_goal_recommendation_via_workflow(
             goal=request.goal,
             preferences=request.preferences,
             plots=plots,
@@ -74,6 +81,11 @@ def advisor_recommend(request: RecommendRequest, db: Session = Depends(get_db)):
             for alternative in result.get("alternatives", [])
         ],
         next_steps=result.get("next_steps", []),
+        decision_trace=(
+            AdvisorDecisionTrace(**result["decision_trace"])
+            if result.get("decision_trace")
+            else None
+        ),
         session_token="",
     )
 
@@ -116,7 +128,9 @@ def advisor_feedback(request: FeedbackRequest, db: Session = Depends(get_db)):
     notices = advisor_preflight_notices(plots, session.goal, updated_prefs)
 
     try:
-        result = run_refine_recommendation(
+        # ADK 2.0 graph workflow — feedback refinement always routes through
+        # specialist_review (models HITL re-entry: user corrected → re-evaluate).
+        result = run_refine_recommendation_via_workflow(
             goal=session.goal,
             updated_preferences=updated_prefs,
             plots=plots,
@@ -145,6 +159,11 @@ def advisor_feedback(request: FeedbackRequest, db: Session = Depends(get_db)):
             for alternative in result.get("alternatives", [])
         ],
         next_steps=result.get("next_steps", []),
+        decision_trace=(
+            AdvisorDecisionTrace(**result["decision_trace"])
+            if result.get("decision_trace")
+            else None
+        ),
         session_token=request.session_token,
     )
 

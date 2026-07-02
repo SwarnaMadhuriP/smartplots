@@ -211,6 +211,12 @@ export default function AdvisorShell({ initialGoal }: Props) {
     if (feedback === 'show_alternatives') {
       setShowAlternatives(true);
       setActiveFeedback(feedback);
+      setTimeout(() => {
+        document.getElementById('advisor-alternatives')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 0);
       return;
     }
 

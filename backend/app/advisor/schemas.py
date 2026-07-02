@@ -93,6 +93,14 @@ class AlternativeItem(BaseModel):
     key_differentiator: str
 
 
+class AdvisorDecisionTrace(BaseModel):
+    route: str
+    selected_specialists: list[str] = Field(default_factory=list)
+    reason_for_route: str
+    top_score: float = Field(ge=0, le=10)
+    score_gap: float = Field(ge=0)
+
+
 class AdvisorRecommendation(BaseModel):
     recommended_plots: list[PlotRecommendationItem]
     primary_recommendation: PlotRecommendationItem
@@ -103,4 +111,5 @@ class AdvisorRecommendation(BaseModel):
     tradeoffs: list[str]
     alternatives: list[AlternativeItem]
     next_steps: list[str]
+    decision_trace: AdvisorDecisionTrace | None = None
     session_token: str

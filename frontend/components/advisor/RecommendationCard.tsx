@@ -15,13 +15,12 @@ import {
   GitCompare,
   Heart,
   Home,
-  Info,
   Layers,
   MapPin,
   MessageCircle,
-  MoreVertical,
   Shield,
   ShieldCheck,
+  Sparkles,
   Star,
   Trophy,
   X,
@@ -57,6 +56,13 @@ export type AdvisorRecommendation = {
   tradeoffs: string[];
   alternatives: AltItem[];
   next_steps: string[];
+  decision_trace?: {
+    route: 'fast_recommendation' | 'specialist_review' | string;
+    selected_specialists: string[];
+    reason_for_route: string;
+    top_score: number;
+    score_gap: number;
+  } | null;
   session_token: string;
 };
 
@@ -215,30 +221,30 @@ const DOCUMENT_TONES: Record<string, string> = {
 
 export default function RecommendationCard({
   recommendation,
+  showAlternatives = false,
   feedbackSlot,
-  comparisonPlotIds = [],
-  compareMessage,
-  onToggleCompare,
 }: Props) {
   const { primary_recommendation: primary, alternatives } = recommendation;
   const [documentsOpen, setDocumentsOpen] = useState(false);
   const [selectedDocumentGroup, setSelectedDocumentGroup] = useState(DOCUMENT_GROUPS[0].title);
+  const [alternativesExpanded, setAlternativesExpanded] = useState(false);
+  const [selectedAlternative, setSelectedAlternative] = useState<AltItem | null>(null);
   const matchPct = percentFromScore(primary.score);
-  const confidencePct = Math.round(clampScore(recommendation.confidence * 100));
-  const isPrimaryCompared = comparisonPlotIds.includes(primary.plot_id);
-  const compareHref = comparisonPlotIds.length > 0
-    ? `/comparisons?ids=${comparisonPlotIds.join(',')}`
-    : '/comparisons';
-
-  function isCompareDisabled(plotId: number) {
-    return !comparisonPlotIds.includes(plotId) && comparisonPlotIds.length >= 3;
-  }
-
-  function compareButtonLabel(plotId: number) {
-    if (comparisonPlotIds.includes(plotId)) return 'Added to Compare';
-    if (comparisonPlotIds.length >= 3) return 'Compare Full';
-    return 'Add to Compare';
-  }
+  const shouldShowAllAlternatives = showAlternatives || alternativesExpanded;
+  const visibleAlternatives = shouldShowAllAlternatives ? alternatives : alternatives.slice(0, 3);
+  const sortedScores = recommendation.recommended_plots
+    .map((plot) => plot.score)
+    .filter((score): score is number => Number.isFinite(score))
+    .sort((a, b) => b - a);
+  const fallbackTopScore = primary.score;
+  const nextBestScore = sortedScores.find((score) => score < fallbackTopScore);
+  const fallbackScoreGap = nextBestScore === undefined ? fallbackTopScore : fallbackTopScore - nextBestScore;
+  const trace = recommendation.decision_trace;
+  const topScore = trace?.top_score ?? fallbackTopScore;
+  const scoreGap = trace?.score_gap ?? fallbackScoreGap;
+  const decisionPath = trace?.route === 'specialist_review'
+    ? 'Specialist Review'
+    : 'Fast Recommendation';
 
   function getAlternativeScore(plotId: number) {
     return normalizeScore(
@@ -281,13 +287,6 @@ export default function RecommendationCard({
       title: 'Save to watchlist',
       href: '/watchlist',
     },
-  ];
-  const matchMetrics = [
-    { label: 'Budget Match', value: matchPct },
-    { label: 'Location Match', value: Math.max(70, matchPct - 5) },
-    { label: 'Utilities Match', value: Math.max(68, matchPct - 8) },
-    { label: 'Zoning Match', value: Math.max(65, matchPct - 10) },
-    { label: 'Risk Level', value: Math.max(60, confidencePct) },
   ];
   const activeDocumentGroup =
     DOCUMENT_GROUPS.find((group) => group.title === selectedDocumentGroup) ?? DOCUMENT_GROUPS[0];
@@ -432,6 +431,115 @@ export default function RecommendationCard({
       document.body,
     )
     : null;
+  const selectedAlternativeScore = selectedAlternative
+    ? getAlternativeScore(selectedAlternative.plot_id)
+    : undefined;
+  const selectedAlternativeRank = selectedAlternative
+    ? alternatives.findIndex((alternative) => alternative.plot_id === selectedAlternative.plot_id) + 2
+    : undefined;
+  const alternativeModal = selectedAlternative && typeof document !== 'undefined'
+    ? createPortal(
+      <div className="fixed inset-y-0 left-0 right-0 z-[1000] flex items-center justify-center bg-[#F3ECE5]/80 px-6 py-6 backdrop-blur-md md:left-64">
+        <button
+          type="button"
+          aria-label="Close plot details"
+          className="absolute inset-0 cursor-default"
+          onClick={() => setSelectedAlternative(null)}
+        />
+
+        <section className="relative grid max-h-[calc(100vh-3rem)] w-full max-w-[880px] overflow-hidden rounded-3xl border border-[#E7D3CC] bg-white shadow-2xl shadow-[#D8C5BC]/60 animate-fadeIn md:grid-cols-[320px_1fr]">
+          <div className="relative min-h-[240px] md:min-h-full">
+            <Image
+              src={imageForPlot(selectedAlternative.plot_id)}
+              alt={selectedAlternative.title}
+              fill
+              sizes="(min-width: 768px) 320px, 100vw"
+              className="object-cover"
+            />
+            {selectedAlternativeRank && (
+              <span className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white text-sm font-bold text-slate-800 shadow-md">
+                {selectedAlternativeRank}
+              </span>
+            )}
+          </div>
+
+          <div className="flex max-h-[calc(100vh-3rem)] flex-col overflow-y-auto px-6 py-5">
+            <div className="flex items-start justify-between gap-5">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-[#C7745A]">Alternative Match</p>
+                <h2 className="mt-2 text-2xl font-bold leading-tight text-slate-950">
+                  {selectedAlternative.title}
+                </h2>
+              </div>
+              <button
+                type="button"
+                aria-label="Close plot details"
+                onClick={() => setSelectedAlternative(null)}
+                className="rounded-full p-2 text-slate-500 transition hover:bg-[#FAF5F2] hover:text-slate-900"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-slate-600">
+              <span className="flex items-center gap-1.5">
+                <MapPin size={15} className="text-slate-500" />
+                {selectedAlternative.location}
+              </span>
+              <span className="text-[#D4BAB0]">•</span>
+              <span className="flex items-center gap-1.5">
+                <Layers size={15} className="text-slate-500" />
+                {selectedAlternative.acres}
+              </span>
+              <span className="text-[#D4BAB0]">•</span>
+              <span className="flex items-center gap-1.5">
+                <Home size={15} className="text-slate-500" />
+                {zoningFromTitle(selectedAlternative.title)}
+              </span>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-[#E7D3CC] bg-[#FBF8F5] px-4 py-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Price</p>
+                <p className="mt-1 text-xl font-bold text-[#C95438]">{selectedAlternative.price}</p>
+              </div>
+              <div className="rounded-2xl border border-[#E7D3CC] bg-[#FBF8F5] px-4 py-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Smart Match</p>
+                <p className="mt-1 text-xl font-bold text-slate-950">
+                  {selectedAlternativeScore === undefined ? 'N/A' : `${selectedAlternativeScore} / 100`}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-[#E7D3CC] bg-[#FFFCFA] px-4 py-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Why it is an alternative</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                {selectedAlternative.key_differentiator}
+              </p>
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link
+                href={`/plots?plotId=${selectedAlternative.plot_id}`}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#D65B3F] px-5 text-sm font-bold text-white shadow-md shadow-[#E7D3CC] transition hover:bg-[#BF4E36] active:scale-[0.98]"
+              >
+                View Plot Details
+                <ArrowUpRight size={16} />
+              </Link>
+              <Link
+                href={`/plots?plotId=${selectedAlternative.plot_id}`}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-[#E7D3CC] bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A]"
+              >
+                <Sparkles size={16} />
+                Ask SmartPlots
+              </Link>
+            </div>
+          </div>
+        </section>
+      </div>,
+      document.body,
+    )
+    : null;
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-y-auto py-2 animate-fadeIn">
@@ -494,87 +602,42 @@ export default function RecommendationCard({
               <div className="mt-7 flex flex-wrap items-center gap-3">
                 <Link
                   href={`/plots?plotId=${primary.plot_id}`}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-[#D65B3F] px-5 py-3 text-sm font-bold text-white shadow-md shadow-[#E7D3CC] transition hover:bg-[#BF4E36] active:scale-[0.98]"
+                  className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#D65B3F] px-5 text-sm font-bold text-white shadow-md shadow-[#E7D3CC] transition hover:bg-[#BF4E36] active:scale-[0.98]"
                 >
                   View Plot Details
                   <ArrowUpRight size={16} />
                 </Link>
-
-                <button
-                  type="button"
-                  onClick={() => onToggleCompare?.(primary.plot_id)}
-                  disabled={isCompareDisabled(primary.plot_id)}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-[#E7D3CC] bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <GitCompare size={16} />
-                  {compareButtonLabel(primary.plot_id)}
-                </button>
-
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-2xl border border-[#E7D3CC] bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A]"
-                >
-                  <Heart size={16} />
-                  Save Plot
-                </button>
-
-                <button
-                  type="button"
-                  aria-label="More actions"
-                  className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-[#E7D3CC] bg-white text-slate-600 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A]"
-                >
-                  <MoreVertical size={18} />
-                </button>
               </div>
-
-              {(compareMessage || isPrimaryCompared) && (
-                <p className="mt-3 text-xs font-medium text-[#A85E47]">
-                  {compareMessage ?? 'Recommended plot added to compare.'}
-                </p>
-              )}
             </div>
 
             <aside className="rounded-2xl bg-[#FBF4F0] p-7">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-700">
-                AI Match Score
-                <span className="group relative">
-                  <Info size={14} />
-                  <span className="pointer-events-none absolute right-0 top-6 z-10 hidden w-60 rounded-2xl bg-slate-900 px-3 py-2 text-xs font-normal leading-relaxed text-white shadow-lg group-hover:block">
-                    Score is based on deterministic matching plus the advisor recommendation.
-                  </span>
-                </span>
+              <div className="text-xs font-bold uppercase tracking-wide text-slate-700">
+                Smart Match
               </div>
               <div className="mt-3 flex items-end gap-1">
-                <p className="text-5xl font-bold leading-none text-slate-950">{matchPct}%</p>
+                <p className="text-5xl font-bold leading-none text-slate-950">{matchPct}</p>
                 <p className="pb-1 text-lg font-medium text-slate-500">/100</p>
               </div>
-              <div className="mt-4 flex gap-2 text-[#C95438]">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <Star key={index} size={20} fill="currentColor" />
-                ))}
-              </div>
-              <div className="mt-7 flex items-start gap-3">
-                <ShieldCheck size={18} className="mt-0.5 text-[#C95438]" />
-                <div>
-                  <p className="text-sm font-bold text-slate-900">
-                    {confidencePct >= 75 ? 'High Confidence' : 'Advisor Confidence'}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">Based on your preferences</p>
-                </div>
-              </div>
-
-              <div className="mt-7 space-y-4">
-                {matchMetrics.map(({ label, value }) => (
-                  <div key={label} className="grid grid-cols-[110px_1fr] items-center gap-3">
-                    <p className="text-xs font-medium text-slate-700">{label}</p>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-[#E9DAD3]">
-                      <div
-                        className="h-full rounded-full bg-[#C95438]"
-                        style={{ width: `${value}%` }}
-                      />
-                    </div>
+              <div className="mt-7 grid gap-5 border-t border-[#E7D3CC] pt-5">
+                <div className="space-y-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-700">Decision Path</p>
+                  <div className="inline-flex min-h-9 items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-bold text-slate-900">
+                    <Zap size={15} className="text-[#C95438]" />
+                    {decisionPath}
                   </div>
-                ))}
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-700">Top Score</p>
+                  <p className="min-h-9 py-2 text-sm font-bold text-slate-900">{topScore.toFixed(1)} / 10</p>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-700">Score Gap</p>
+                  <p className="min-h-9 py-2 text-sm font-bold text-slate-900">
+                    +{scoreGap.toFixed(1)} over next best plot
+                  </p>
+                </div>
               </div>
             </aside>
           </div>
@@ -605,19 +668,28 @@ export default function RecommendationCard({
           <section className="rounded-2xl border border-[#E7D3CC] bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-lg font-bold text-slate-950">Other great matches</h3>
-              {alternatives.length > 0 && (
-                <a href="#advisor-alternatives" className="text-xs font-semibold text-[#C95438]">
+              {alternatives.length > visibleAlternatives.length && (
+                <button
+                  type="button"
+                  onClick={() => setAlternativesExpanded(true)}
+                  className="text-xs font-semibold text-[#C95438] transition hover:text-[#A8452D]"
+                >
                   View all ({alternatives.length})
-                </a>
+                </button>
               )}
             </div>
 
             <div id="advisor-alternatives" className="mt-5 space-y-4">
-              {alternatives.slice(0, 3).map((alternative, index) => {
-                const altScore = getAlternativeScore(alternative.plot_id) ?? Math.max(70, matchPct - ((index + 1) * 6));
+              {visibleAlternatives.map((alternative, index) => {
+                const altScore = getAlternativeScore(alternative.plot_id);
 
                 return (
-                  <div key={alternative.plot_id} className="grid grid-cols-[76px_1fr_64px] items-center gap-3">
+                  <button
+                    key={alternative.plot_id}
+                    type="button"
+                    onClick={() => setSelectedAlternative(alternative)}
+                    className="grid w-full grid-cols-[76px_1fr_64px] items-center gap-3 rounded-2xl text-left transition hover:bg-[#FAF5F2] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C7745A]"
+                  >
                     <div className="relative h-16 overflow-hidden rounded-xl">
                       <Image
                         src={imageForPlot(alternative.plot_id)}
@@ -636,22 +708,25 @@ export default function RecommendationCard({
                       <p className="mt-1 text-xs font-bold text-[#C95438]">{alternative.price}</p>
                     </div>
                     <div className="rounded-xl bg-[#FAF5F2] px-2 py-3 text-center">
-                      <p className="text-lg font-bold leading-none text-slate-900">{altScore}%</p>
+                      <p className="text-lg font-bold leading-none text-slate-900">
+                        {altScore === undefined ? 'N/A' : `${altScore}%`}
+                      </p>
                       <p className="mt-1 text-[10px] font-medium text-slate-500">Match</p>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
 
-            {alternatives.length > 0 && (
-              <Link
-                href={compareHref}
+            {alternatives.length > visibleAlternatives.length && (
+              <button
+                type="button"
+                onClick={() => setAlternativesExpanded(true)}
                 className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#E7D3CC] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#C7745A] hover:bg-[#FAF5F2] hover:text-[#C7745A]"
               >
                 View All Alternatives
                 <ArrowUpRight size={15} />
-              </Link>
+              </button>
             )}
           </section>
 
@@ -701,6 +776,7 @@ export default function RecommendationCard({
       </div>
 
       {documentsModal}
+      {alternativeModal}
     </div>
   );
 }
