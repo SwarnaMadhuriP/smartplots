@@ -434,6 +434,9 @@ export default function RecommendationCard({
   const selectedAlternativeScore = selectedAlternative
     ? getAlternativeScore(selectedAlternative.plot_id)
     : undefined;
+  const selectedAlternativeRawScore = selectedAlternativeScore === undefined
+    ? undefined
+    : selectedAlternativeScore / 10;
   const selectedAlternativeRank = selectedAlternative
     ? alternatives.findIndex((alternative) => alternative.plot_id === selectedAlternative.plot_id) + 2
     : undefined;
@@ -470,6 +473,9 @@ export default function RecommendationCard({
                 <h2 className="mt-2 text-2xl font-bold leading-tight text-slate-950">
                   {selectedAlternative.title}
                 </h2>
+                <p className="mt-2 text-sm font-semibold text-slate-600">
+                  Score: {selectedAlternativeRawScore === undefined ? 'N/A' : `${selectedAlternativeRawScore.toFixed(1)} / 10`}
+                </p>
               </div>
               <button
                 type="button"
@@ -504,9 +510,9 @@ export default function RecommendationCard({
                 <p className="mt-1 text-xl font-bold text-[#C95438]">{selectedAlternative.price}</p>
               </div>
               <div className="rounded-2xl border border-[#E7D3CC] bg-[#FBF8F5] px-4 py-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Smart Match</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Score</p>
                 <p className="mt-1 text-xl font-bold text-slate-950">
-                  {selectedAlternativeScore === undefined ? 'N/A' : `${selectedAlternativeScore} / 100`}
+                  {selectedAlternativeRawScore === undefined ? 'N/A' : `${selectedAlternativeRawScore.toFixed(1)} / 10`}
                 </p>
               </div>
             </div>
