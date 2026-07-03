@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from app.database import initialize_database
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -5,6 +7,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, engine
 from app.api import advisor, compare, plots, search, ask, feedback
+
+UPLOADS_DIR = Path(__file__).resolve().parents[1] / "uploads"
 
 app = FastAPI(title="SmartPlots API")
 
@@ -25,7 +29,7 @@ app.include_router(advisor.router)
 app.include_router(search.router)
 app.include_router(ask.router)
 app.include_router(feedback.router)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 
 @app.get("/health")

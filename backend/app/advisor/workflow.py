@@ -126,7 +126,9 @@ from app.advisor.prompt_builder import build_recommend_prompt, build_refine_prom
 from app.advisor.schemas import GoalKey, GoalPreferences
 from app.advisor.scorer import get_top_plots
 from app.core.gemini import call_with_retry
+from app.database import SessionLocal
 from app.models import Plot
+from app.rag.retrieval import retrieve_plot_context
 from app.services.advisor_service import advisor_preflight_notices
 from app.tools.analysis_tools import (
     calculate_investment_metrics,
@@ -297,6 +299,10 @@ class WorkflowState:
     top_score: float = 0.0
     score_gap: float = 0.0              # Score difference between rank-1 and rank-2
 
+    # ── Populated by rag_retrieval_node ──────────────────────────────────────
+    rag_context: list[dict] = field(default_factory=list)
+    rag_unavailable_reason: str | None = None
+
     # ── Populated by decision_router_node ────────────────────────────────────
     route_taken: str = ""               # "fast_recommendation" | "specialist_review"
     reason_for_route: str = ""
@@ -421,7 +427,110 @@ def deterministic_scoring_node(state: WorkflowState) -> WorkflowState:
 
 
 # ---------------------------------------------------------------------------
-# NODE 4 — Decision Router
+# NODE 4 — RAG Retrieval
+# ---------------------------------------------------------------------------
+
+
+def build_rag_query(state: WorkflowState) -> str:
+    """Build a retrieval query from the user's goal and concrete preferences."""
+    prefs = state.preferences
+    query_parts = [
+        f"Goal: {state.goal.value}",
+        "Find document evidence about zoning, utilities, access, risks, restrictions, due diligence, and suitability.",
+    ]
+    if prefs.preferred_location:
+        query_parts.append(f"Preferred location: {prefs.preferred_location}")
+    if prefs.utilities_required:
+        query_parts.append(f"Required utilities: {', '.join(prefs.utilities_required)}")
+    if prefs.utilities_preferred:
+        query_parts.append(f"Preferred utilities: {', '.join(prefs.utilities_preferred)}")
+    if prefs.zoning_preference:
+        query_parts.append(f"Zoning preference: {prefs.zoning_preference}")
+    if prefs.commercial_zoning_required:
+        query_parts.append("Commercial zoning is required.")
+    if prefs.road_access_required:
+        query_parts.append("Road access, frontage, driveway access, or easements are required.")
+    if prefs.quiet_area is not None:
+        query_parts.append(f"Quiet or rural area preferred: {prefs.quiet_area}")
+    if prefs.risk_tolerance:
+        query_parts.append(f"Risk tolerance: {prefs.risk_tolerance}")
+    if prefs.time_horizon:
+        query_parts.append(f"Time horizon: {prefs.time_horizon}")
+    return " ".join(query_parts)
+
+
+def rag_prompt_chunks(state: WorkflowState) -> list[str]:
+    """
+    Convert retrieved RAG rows into compact prompt evidence with citations.
+
+    The LLM sees this as supporting evidence only; deterministic plot scores
+    remain authoritative and are re-applied after the model responds.
+    """
+    if not state.rag_context:
+        reason = state.rag_unavailable_reason or (
+            "No uploaded document evidence was retrieved for the shortlisted plots."
+        )
+        return [f"Document evidence unavailable: {reason}"]
+
+    chunks: list[str] = []
+    for item in state.rag_context:
+        page = item.get("page_number")
+        page_text = f", page {page}" if page else ""
+        text = str(item.get("text", "")).strip()
+        if len(text) > 700:
+            text = text[:700].rstrip() + "..."
+        chunks.append(
+            "Plot #{plot_id} [{document_type} — {filename}{page_text}]: {text}".format(
+                plot_id=item.get("plot_id", "unknown"),
+                document_type=item.get("document_type", "document"),
+                filename=item.get("filename", "unknown"),
+                page_text=page_text,
+                text=text or "No extractable text.",
+            )
+        )
+    return chunks
+
+
+def rag_retrieval_node(state: WorkflowState) -> WorkflowState:
+    """
+    Retrieve document evidence for the deterministic shortlist.
+
+    This node intentionally runs after deterministic scoring and before any AI
+    recommendation call. It never changes scores, rankings, routing, or API
+    response models; it only adds cited document context for the explanation.
+    """
+    plot_ids = [cast(int, plot.id) for plot, _score in state.top_plots]
+    query = build_rag_query(state)
+
+    db = SessionLocal()
+    try:
+        state.rag_context = retrieve_plot_context(
+            plot_ids=plot_ids,
+            query=query,
+            db=db,
+            limit_per_plot=3,
+        )
+        if not state.rag_context:
+            state.rag_unavailable_reason = (
+                "No uploaded document evidence was found for the shortlisted plots."
+            )
+        logger.info(
+            "[AdvisorWorkflow] rag_retrieval_node — retrieved %d chunk(s) for %d shortlisted plot(s)",
+            len(state.rag_context),
+            len(plot_ids),
+        )
+    except Exception as exc:  # noqa: BLE001
+        state.rag_context = []
+        state.rag_unavailable_reason = "Document evidence was unavailable for this run."
+        logger.warning("[AdvisorWorkflow] rag_retrieval_node failed: %s", exc)
+    finally:
+        db.close()
+
+    return state
+
+
+# ---------------------------------------------------------------------------
+# NODE 5 — Decision Router
 # (ADK 2.0 equivalent: ConditionalEdge / router node)
 # ---------------------------------------------------------------------------
 
@@ -659,7 +768,7 @@ def _select_specialists(
 
 
 # ---------------------------------------------------------------------------
-# NODE 5a — Fast Recommendation
+# NODE 6a — Fast Recommendation
 # (ADK 2.0 equivalent: FastPath tool node / LLM call with standard prompt)
 # ---------------------------------------------------------------------------
 
@@ -676,7 +785,12 @@ def fast_recommendation_node(state: WorkflowState) -> WorkflowState:
     """
     logger.info("[AdvisorWorkflow] fast_recommendation_node — calling Gemini")
 
-    prompt = build_recommend_prompt(state.goal, state.preferences, state.top_plots)
+    prompt = build_recommend_prompt(
+        state.goal,
+        state.preferences,
+        state.top_plots,
+        rag_chunks=rag_prompt_chunks(state),
+    )
 
     response = call_with_retry(
         model=GEMINI_MODEL,
@@ -1075,12 +1189,7 @@ def build_specialist_prompt(state: WorkflowState) -> str:
     specialist_block = "\n".join(sections)
 
     # ── Build the base prompt (feedback-aware) ────────────────────────────────
-    # RAG chunks: already retrieved by document_intelligence_node — convert to
-    # list[str] for the existing build_*_prompt signature
-    rag_chunks: list[str] = [
-        f"[{c.get('document_type', 'doc')} — {c.get('filename', '?')}]: {c.get('text', '')}"
-        for c in (sa.documents if sa else [])
-    ]
+    rag_chunks = rag_prompt_chunks(state)
 
     if state.feedback_label:
         base_prompt = build_refine_prompt(
@@ -1088,14 +1197,14 @@ def build_specialist_prompt(state: WorkflowState) -> str:
             state.preferences,
             state.top_plots,
             state.feedback_label,
-            rag_chunks=rag_chunks if rag_chunks else None,
+            rag_chunks=rag_chunks,
         )
     else:
         base_prompt = build_recommend_prompt(
             state.goal,
             state.preferences,
             state.top_plots,
-            rag_chunks=rag_chunks if rag_chunks else None,
+            rag_chunks=rag_chunks,
         )
 
     # Prepend the specialist panel reports so Gemini synthesises them first
@@ -1231,10 +1340,11 @@ class AdvisorWorkflow:
     1. input_guard_node              ← validate inputs
     2. preference_context_node       ← enrich with context flags + notices
     3. deterministic_scoring_node    ← Python scorer (no Gemini)
-    4. decision_router_node          ← decide route + select specialists
+    4. rag_retrieval_node            ← document evidence for scored shortlist
+    5. decision_router_node          ← decide route + select specialists
          calls _select_specialists() → SPECIALIST_ROUTING_TABLE[goal] + overrides
-    5a. fast_recommendation_node     (route == "fast_recommendation")
-    5b. specialist_review_node       (route == "specialist_review")
+    6a. fast_recommendation_node     (route == "fast_recommendation")
+    6b. specialist_review_node       (route == "specialist_review")
          → run_specialist_panel()    ← ONLY selected_specialists run (no Gemini)
          → build_specialist_prompt() ← formats only the reports that ran
          → Gemini call               ← synthesises specialist findings
@@ -1278,6 +1388,7 @@ class AdvisorWorkflow:
         state = input_guard_node(state)
         state = preference_context_node(state)
         state = deterministic_scoring_node(state)
+        state = rag_retrieval_node(state)
         state = decision_router_node(state)
 
         # ── Conditional branch (ADK 2.0 conditional edge) ────────────────────

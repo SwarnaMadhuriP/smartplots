@@ -1,10 +1,4 @@
-"""
-Builds the AI prompt for the goal-based advisor recommendation.
-
-RAG extension point: pass `rag_chunks` to inject document context into the prompt.
-In the MVP this list is always empty. In Phase 2, the Document Intelligence service
-will populate it with relevant chunks from uploaded zoning docs, brochures, etc.
-"""
+"""Builds the AI prompt for the goal-based advisor recommendation."""
 
 from __future__ import annotations
 
@@ -92,7 +86,7 @@ def build_recommend_prompt(
     goal: GoalKey,
     preferences: GoalPreferences,
     top_plots: list[tuple[Plot, float]],
-    rag_chunks: list[str] | None = None,  # RAG extension point — Phase 2
+    rag_chunks: list[str] | None = None,
 ) -> str:
     """
     Build the full AI recommendation prompt.
@@ -101,7 +95,7 @@ def build_recommend_prompt(
         goal: The user's selected investment/use goal.
         preferences: Goal-specific user preferences.
         top_plots: (plot, score) pairs from the Python scorer, already sorted descending.
-        rag_chunks: Optional document context from the Document Intelligence service (Phase 2).
+        rag_chunks: Optional document evidence retrieved for the scored shortlist.
 
     Returns:
         Prompt string ready to send to Gemini.
@@ -119,6 +113,9 @@ based on the user's goal and preferences.
 
 CRITICAL RULES:
 - Use ONLY the facts provided in the plot data below. Do NOT invent specifications, utilities, or zoning details.
+- Deterministic Python scores are the source of truth. Do NOT change scores, rankings, or plot IDs.
+- Document evidence is supporting context only. Use it to explain or qualify the recommendation, not to override scores.
+- If document evidence is unavailable or does not address a point, say that clearly instead of inventing document facts.
 - Base your recommendation on the user's goal and preferences.
 - Be specific and actionable in your reasoning.
 - Set confidence as a float 0.0–1.0 reflecting how well the top plot truly matches all requirements.
@@ -145,18 +142,16 @@ CRITICAL RULES:
 
 Respond with valid JSON matching the response schema exactly."""
 
-    # ------------------------------------------------------------------ #
-    # RAG extension point — Phase 2
-    # ------------------------------------------------------------------ #
     if rag_chunks:
         doc_context = "\n\n".join(rag_chunks)
         prompt += f"""
 
-=== DOCUMENT CONTEXT (from uploaded property documents) ===
+=== RELEVANT DOCUMENT EVIDENCE ===
 {doc_context}
 
-Use the above document context to supplement the plot data where relevant.
-Cite specific document findings in your reasoning or risks when applicable."""
+Use the above document evidence to supplement the plot data where relevant.
+Preserve source filenames and page numbers in reasoning, risks, or next steps when applicable.
+If the evidence says it is unavailable, explicitly state that document evidence was unavailable and continue with plot data only."""
 
     return prompt
 

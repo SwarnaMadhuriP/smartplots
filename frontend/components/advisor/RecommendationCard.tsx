@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
+import type { GoalKey } from './GoalSelector';
 import {
   ArrowUpRight,
   CheckCircle2,
@@ -68,6 +69,7 @@ export type AdvisorRecommendation = {
 
 type Props = {
   recommendation: AdvisorRecommendation;
+  goal?: GoalKey;
   showAlternatives?: boolean;
   feedbackSlot?: ReactNode;
   comparisonPlotIds?: number[];
@@ -84,6 +86,14 @@ const PLOT_IMAGES_BY_ID: Record<number, string> = {
   6: 'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1200&q=80',
   7: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80',
   8: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1200&q=80',
+};
+
+const GOAL_LABELS: Record<GoalKey, string> = {
+  build_home: 'Build a Home',
+  invest_appreciation: 'Invest for Appreciation',
+  retirement_lifestyle: 'Retirement / Lifestyle',
+  commercial: 'Commercial Development',
+  maximize_value: 'Maximize Value',
 };
 
 function imageForPlot(plotId: number) {
@@ -223,6 +233,7 @@ const API_BASE = process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL ?? '';
 
 export default function RecommendationCard({
   recommendation,
+  goal,
   showAlternatives = false,
   feedbackSlot,
 }: Props) {
@@ -250,6 +261,16 @@ export default function RecommendationCard({
   const decisionPath = trace?.route === 'specialist_review'
     ? 'Specialist Review'
     : 'Fast Recommendation';
+  const goalLabel = goal ? GOAL_LABELS[goal] : undefined;
+  const advisorCompareIds = Array.from(
+    new Set([
+      primary.plot_id,
+      ...alternatives.slice(0, 2).map((alternative) => alternative.plot_id),
+    ]),
+  ).slice(0, 3);
+  const advisorCompareHref = `/comparisons?source=ai_advisor&ids=${advisorCompareIds.join(',')}${
+    goalLabel ? `&goal=${encodeURIComponent(goalLabel)}` : ''
+  }`;
 
   function getAlternativeScore(plotId: number) {
     return normalizeScore(
@@ -289,7 +310,7 @@ export default function RecommendationCard({
     {
       icon: GitCompare,
       title: 'Compare Alternatives',
-      href: `/comparisons?ids=${primary.plot_id}`,
+      href: advisorCompareHref,
     },
     {
       icon: Heart,
@@ -490,23 +511,20 @@ export default function RecommendationCard({
               </button>
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-slate-600">
+            <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm font-medium text-slate-600">
               <span className="flex items-center gap-1.5">
                 <MapPin size={15} className="text-slate-500" />
                 {selectedAlternative.location}
               </span>
-              <span className="text-[#D4BAB0]">•</span>
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5 before:text-[#D4BAB0] before:content-['•']">
                 <Layers size={15} className="text-slate-500" />
                 {selectedAlternative.acres}
               </span>
-              <span className="text-[#D4BAB0]">•</span>
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5 before:text-[#D4BAB0] before:content-['•']">
                 <Home size={15} className="text-slate-500" />
                 {zoningFromTitle(selectedAlternative.title)}
               </span>
-              <span className="text-[#D4BAB0]">•</span>
-              <span className="text-slate-700">
+              <span className="flex items-center gap-1.5 text-slate-700 before:text-[#D4BAB0] before:content-['•']">
                 ID: {selectedAlternative.plot_id}
               </span>
             </div>
@@ -573,28 +591,31 @@ export default function RecommendationCard({
             </div>
 
             <div className="flex min-w-0 flex-col justify-center">
+              {goalLabel && (
+                <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full bg-[#FAF1EC] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-[#C7745A]">
+                  <Sparkles size={13} />
+                  Goal: {goalLabel}
+                </div>
+              )}
 
-              <h2 className="mt-4 text-3xl font-bold leading-tight tracking-tight text-slate-950">
+              <h2 className="text-3xl font-bold leading-tight tracking-tight text-slate-950">
                 {primary.title}
               </h2>
 
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-slate-600">
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm font-medium text-slate-600">
                 <span className="flex items-center gap-1.5">
                   <MapPin size={15} className="text-slate-500" />
                   {primary.location}
                 </span>
-                <span className="text-[#D4BAB0]">•</span>
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1.5 before:text-[#D4BAB0] before:content-['•']">
                   <Layers size={15} className="text-slate-500" />
                   {primary.acres}
                 </span>
-                <span className="text-[#D4BAB0]">•</span>
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1.5 before:text-[#D4BAB0] before:content-['•']">
                   <Home size={15} className="text-slate-500" />
                   {zoningFromTitle(primary.title)}
                 </span>
-                <span className="text-[#D4BAB0]">•</span>
-                <span className="text-slate-700">
+                <span className="flex items-center gap-1.5 text-slate-700 before:text-[#D4BAB0] before:content-['•']">
                   ID: {primary.plot_id}
                 </span>
               </div>

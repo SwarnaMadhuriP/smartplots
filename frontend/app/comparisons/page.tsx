@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import ComparisonTable from '@/components/ComparisonTable';
 import { ComparisonPlot, ComparisonAnalysis } from '@/types/comparisons';
@@ -8,6 +8,7 @@ import { Sparkles, Loader2 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 
 const MAX_COMPARE_PLOTS = 3;
+type ComparisonSource = 'manual' | 'ai_advisor';
 
 function parseComparisonIds(value: string | null) {
   if (!value) return [];
@@ -19,12 +20,51 @@ function parseComparisonIds(value: string | null) {
     .slice(0, MAX_COMPARE_PLOTS);
 }
 
-export default function ComparisonsPage() {
+type PlotApiResponse = Partial<ComparisonPlot> & {
+  rawPrice?: number;
+  rawAcres?: number;
+  location?: string;
+  zone?: string;
+  price?: number | string;
+};
+
+function numericValue(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value.replace(/[$,]/g, '').replace('Acres', '').trim());
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function normalizeComparisonPlot(plot: PlotApiResponse): ComparisonPlot {
+  const [locationCity, locationState] = (plot.location ?? '')
+    .split(',')
+    .map((part) => part.trim());
+
+  return {
+    id: Number(plot.id),
+    title: plot.title ?? `Plot #${plot.id}`,
+    price: numericValue(plot.rawPrice ?? plot.price),
+    area_acres: numericValue(plot.area_acres ?? plot.rawAcres),
+    city: plot.city ?? locationCity ?? 'Unknown',
+    state: plot.state ?? locationState ?? 'Unknown',
+    zoning_type: plot.zoning_type ?? plot.zone ?? 'General',
+    road_access: Boolean(plot.road_access),
+    water_access: Boolean(plot.water_access),
+    electricity: Boolean(plot.electricity),
+    sewer: Boolean(plot.sewer),
+    risk_notes: plot.risk_notes,
+  };
+}
+
+function ComparisonsPageContent() {
   const [plots, setPlots] = useState<ComparisonPlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [analysis, setAnalysis] = useState<ComparisonAnalysis | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [goal, setGoal] = useState('');
+  const [comparisonSource, setComparisonSource] = useState<ComparisonSource>('manual');
   const searchParams = useSearchParams();
 
   async function fetchAnalysis(plotIds: number[], currentGoal?: string) {
@@ -61,13 +101,21 @@ export default function ComparisonsPage() {
   useEffect(() => {
     async function loadComparisonPlots() {
       try {
+        const sourceParam = searchParams.get('source');
+        const nextSource: ComparisonSource =
+          sourceParam === 'ai_advisor' ? 'ai_advisor' : 'manual';
         const queryIds = parseComparisonIds(searchParams.get('ids'));
+        const queryGoal = searchParams.get('goal') ?? '';
         const storedIds = localStorage.getItem('comparisonPlotIds');
         const ids: number[] = queryIds.length > 0
           ? queryIds
           : storedIds
             ? JSON.parse(storedIds).slice(0, MAX_COMPARE_PLOTS)
             : [];
+
+        setComparisonSource(nextSource);
+        setGoal(queryGoal);
+        setAnalysis(null);
 
         if (queryIds.length > 0) {
           localStorage.setItem('comparisonPlotIds', JSON.stringify(queryIds));
@@ -94,8 +142,10 @@ export default function ComparisonsPage() {
           }),
         );
 
-        setPlots(data);
-        fetchAnalysis(ids);
+        setPlots(data.map(normalizeComparisonPlot));
+        if (nextSource === 'ai_advisor') {
+          fetchAnalysis(ids, queryGoal);
+        }
       } catch (error) {
         console.error('Error loading comparison plots:', error);
 
@@ -113,6 +163,7 @@ export default function ComparisonsPage() {
     setPlots([]);
     setAnalysis(null);
     setGoal('');
+    setComparisonSource('manual');
   };
 
   const handleCustomAnalyze = () => {
@@ -140,18 +191,18 @@ export default function ComparisonsPage() {
               </button>
             </div>
 
-            {/* AI Comparison Analyst Agent Panel */}
             {plots.length > 0 && (
               <div className="mb-6 rounded-[2rem] border border-[#E7D3CC] bg-white p-6 shadow-sm">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-[#F3ECE5] pb-4">
                   <div>
                     <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                      <Sparkles className="text-[#C7745A]" size={20} /> AI
-                      Comparison Analyst Agent
+                      <Sparkles className="text-[#C7745A]" size={20} />
+                      AI Plot Comparison
                     </h2>
                     <p className="text-sm text-slate-500 mt-1">
-                      Specify an investment or development goal to dynamically
-                      analyze these plots.
+                      {comparisonSource === 'ai_advisor'
+                        ? 'Comparing the AI Advisor recommendation against its closest alternatives.'
+                        : 'Specify an optional goal to analyze the selected plots.'}
                     </p>
                   </div>
 
@@ -234,5 +285,24 @@ export default function ComparisonsPage() {
         )}
       </section>
     </main>
+  );
+}
+
+export default function ComparisonsPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex h-screen overflow-hidden bg-[#F3ECE5] text-slate-900">
+          <Sidebar />
+          <section className="flex-1 overflow-y-auto px-10 py-10">
+            <div className="rounded-3xl bg-white p-8 text-slate-500 shadow-sm">
+              Loading comparison...
+            </div>
+          </section>
+        </main>
+      }
+    >
+      <ComparisonsPageContent />
+    </Suspense>
   );
 }

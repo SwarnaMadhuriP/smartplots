@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import SearchHero, {
   SearchFilters,
@@ -85,7 +85,7 @@ function sortPlots(plots: Plot[], sortBy: SortOption): Plot[] {
   });
 }
 
-export default function Home() {
+function HomeContent() {
   const [plots, setPlots] = useState<Plot[]>([]);
   const [basePlots, setBasePlots] = useState<Plot[]>([]);
   const [selectedPlotId, setSelectedPlotId] = useState<number | null>(null);
@@ -408,5 +408,24 @@ export default function Home() {
 
       {selectedPlot && <RightPanel plot={selectedPlot} />}
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex h-screen overflow-hidden bg-[#F3ECE5] text-slate-900">
+          <Sidebar />
+          <section className="flex-1 overflow-y-auto px-10 py-10">
+            <div className="rounded-3xl bg-white p-8 text-slate-500 shadow-sm">
+              Loading plots...
+            </div>
+          </section>
+        </main>
+      }
+    >
+      <HomeContent />
+    </Suspense>
   );
 }

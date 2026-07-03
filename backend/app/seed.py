@@ -236,98 +236,98 @@ class DocToIngest(TypedDict):
 docs_to_ingest: list[DocToIngest] = [
     # Plot 1 — Green Valley Residential Plot
     {
-        "file_path": "uploads/documents/plot\u20131/brochure.pdf",
+        "file_path": "uploads/documents/plot-1/brochure.pdf",
         "plot_id": 1,
         "document_type": "brochure",
     },
     {
-        "file_path": "uploads/documents/plot\u20131/investment_report.pdf",
+        "file_path": "uploads/documents/plot-1/investment_report.pdf",
         "plot_id": 1,
         "document_type": "investment_report",
     },
     {
-        "file_path": "uploads/documents/plot\u20131/property_fact_sheet.pdf",
+        "file_path": "uploads/documents/plot-1/property_fact_sheet.pdf",
         "plot_id": 1,
         "document_type": "property_fact_sheet",
     },
     {
-        "file_path": "uploads/documents/plot\u20131/zoning_report.pdf",
+        "file_path": "uploads/documents/plot-1/zoning_report.pdf",
         "plot_id": 1,
         "document_type": "zoning_report",
     },
     {
-        "file_path": "uploads/documents/plot\u20131/soil_report.pdf",
+        "file_path": "uploads/documents/plot-1/soil_report.pdf",
         "plot_id": 1,
         "document_type": "soil_report",
     },
     {
-        "file_path": "uploads/documents/plot\u20131/utility_report.pdf",
+        "file_path": "uploads/documents/plot-1/utility_report.pdf",
         "plot_id": 1,
         "document_type": "utility_report",
     },
     {
-        "file_path": "uploads/documents/plot\u20131/neighborhood_guide.pdf",
+        "file_path": "uploads/documents/plot-1/neighborhood_guide.pdf",
         "plot_id": 1,
         "document_type": "neighborhood_guide",
     },
     {
-        "file_path": "uploads/documents/plot\u20131/property_disclosure.pdf",
+        "file_path": "uploads/documents/plot-1/property_disclosure.pdf",
         "plot_id": 1,
         "document_type": "property_disclosure",
     },
     {
-        "file_path": "uploads/documents/plot\u20131/county_growth_report.pdf",
+        "file_path": "uploads/documents/plot-1/county_growth_report.pdf",
         "plot_id": 1,
         "document_type": "county_growth_report",
     },
     {
-        "file_path": "uploads/documents/plot\u20131/due_diligence_checklist.pdf",
+        "file_path": "uploads/documents/plot-1/due_diligence_checklist.pdf",
         "plot_id": 1,
         "document_type": "due_diligence_checklist",
     },
     # Plot 2 — Lakeside Retreat Land
     {
-        "file_path": "uploads/documents/plot\u20132/brochure.pdf",
+        "file_path": "uploads/documents/plot-2/brochure.pdf",
         "plot_id": 2,
         "document_type": "brochure",
     },
     {
-        "file_path": "uploads/documents/plot\u20132/property_fact_sheet.pdf",
+        "file_path": "uploads/documents/plot-2/property_fact_sheet.pdf",
         "plot_id": 2,
         "document_type": "property_fact_sheet",
     },
     {
-        "file_path": "uploads/documents/plot\u20132/zoning_report.pdf",
+        "file_path": "uploads/documents/plot-2/zoning_report.pdf",
         "plot_id": 2,
         "document_type": "zoning_report",
     },
     {
-        "file_path": "uploads/documents/plot\u20132/soil_report.pdf",
+        "file_path": "uploads/documents/plot-2/soil_report.pdf",
         "plot_id": 2,
         "document_type": "soil_report",
     },
     {
-        "file_path": "uploads/documents/plot\u20132/utility_report.pdf",
+        "file_path": "uploads/documents/plot-2/utility_report.pdf",
         "plot_id": 2,
         "document_type": "utility_report",
     },
     {
-        "file_path": "uploads/documents/plot\u20132/neighborhood_guide.pdf",
+        "file_path": "uploads/documents/plot-2/neighborhood_guide.pdf",
         "plot_id": 2,
         "document_type": "neighborhood_guide",
     },
     {
-        "file_path": "uploads/documents/plot\u20132/property_disclosure.pdf",
+        "file_path": "uploads/documents/plot-2/property_disclosure.pdf",
         "plot_id": 2,
         "document_type": "property_disclosure",
     },
     {
-        "file_path": "uploads/documents/plot\u20132/county_growth_report.pdf",
+        "file_path": "uploads/documents/plot-2/county_growth_report.pdf",
         "plot_id": 2,
         "document_type": "county_growth_report",
     },
     {
-        "file_path": "uploads/documents/plot\u20132/due_diligence_checklist.pdf",
+        "file_path": "uploads/documents/plot-2/due_diligence_checklist.pdf",
         "plot_id": 2,
         "document_type": "due_diligence_checklist",
     },

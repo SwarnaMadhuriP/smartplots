@@ -79,27 +79,52 @@ function formatAdvisorError(raw: unknown, fallback: string) {
 }
 
 export default function AdvisorShell({ initialGoal }: Props) {
-  const saved = loadPersistedState();
-  const shouldRestoreRecommendation =
-    Boolean(saved.recommendation) && (!initialGoal || initialGoal === saved.goal);
   const [step, setStep] = useState<Step>(
-    shouldRestoreRecommendation ? 'recommendation' : initialGoal ?? saved.goal ? 'inputs' : 'goal_select',
+    initialGoal ? 'inputs' : 'goal_select',
   );
-  const [goal, setGoal] = useState<GoalKey | undefined>(initialGoal ?? saved.goal);
-  const [prefs, setPrefs] = useState<GoalPreferences | undefined>(saved.prefs);
-  const [recommendation, setRecommendation] = useState<AdvisorRecommendation | null>(
-    shouldRestoreRecommendation ? saved.recommendation ?? null : null,
-  );
+  const [goal, setGoal] = useState<GoalKey | undefined>(initialGoal);
+  const [prefs, setPrefs] = useState<GoalPreferences | undefined>();
+  const [recommendation, setRecommendation] = useState<AdvisorRecommendation | null>(null);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
-  const [activeFeedback, setActiveFeedback] = useState<FeedbackOption | undefined>(
-    shouldRestoreRecommendation ? saved.activeFeedback : undefined,
-  );
-  const [showAlternatives, setShowAlternatives] = useState(
-    shouldRestoreRecommendation ? Boolean(saved.showAlternatives) : false,
-  );
-  const [comparisonPlotIds, setComparisonPlotIds] = useState<number[]>(loadComparisonPlotIds);
+  const [activeFeedback, setActiveFeedback] = useState<FeedbackOption | undefined>();
+  const [showAlternatives, setShowAlternatives] = useState(false);
+  const [comparisonPlotIds, setComparisonPlotIds] = useState<number[]>([]);
   const [compareMessage, setCompareMessage] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    queueMicrotask(() => {
+      if (!isMounted) return;
+
+      const saved = loadPersistedState();
+      const shouldRestoreRecommendation =
+        Boolean(saved.recommendation) && (!initialGoal || initialGoal === saved.goal);
+
+      setComparisonPlotIds(loadComparisonPlotIds());
+
+      if (shouldRestoreRecommendation) {
+        setGoal(saved.goal);
+        setPrefs(saved.prefs);
+        setRecommendation(saved.recommendation ?? null);
+        setActiveFeedback(saved.activeFeedback);
+        setShowAlternatives(Boolean(saved.showAlternatives));
+        setStep('recommendation');
+        return;
+      }
+
+      if (!initialGoal && saved.goal) {
+        setGoal(saved.goal);
+        setPrefs(saved.prefs);
+        setStep('inputs');
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [initialGoal]);
 
   useEffect(() => {
     persistState({
@@ -324,6 +349,7 @@ export default function AdvisorShell({ initialGoal }: Props) {
           {step === 'recommendation' && recommendation && (
             <RecommendationCard
               recommendation={recommendation}
+              goal={goal}
               showAlternatives={showAlternatives}
               comparisonPlotIds={comparisonPlotIds}
               compareMessage={compareMessage}

@@ -11,7 +11,11 @@ router = APIRouter()
 
 @router.post("/plots/compare")
 def compare_plots(request: CompareRequest, db: Session = Depends(get_db)):
-    plots = db.query(Plot).filter(Plot.id.in_(request.plot_ids)).all()
+    plots_by_id = {
+        plot.id: plot
+        for plot in db.query(Plot).filter(Plot.id.in_(request.plot_ids)).all()
+    }
+    plots = [plots_by_id[plot_id] for plot_id in request.plot_ids if plot_id in plots_by_id]
     if not plots:
         raise HTTPException(status_code=400, detail="No plots found to compare.")
 
