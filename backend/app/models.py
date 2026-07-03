@@ -62,6 +62,12 @@ class Plot(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    embedding: Mapped[Optional["PlotEmbedding"]] = relationship(
+        "PlotEmbedding",
+        back_populates="plot",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
     documents: Mapped[list["Document"]] = relationship(
         "Document", back_populates="plot", cascade="all, delete-orphan"
     )
@@ -308,6 +314,22 @@ class PlotInsight(Base):
     )
 
     plot: Mapped["Plot"] = relationship("Plot", back_populates="insight")
+
+
+class PlotEmbedding(Base):
+    __tablename__ = "plot_embeddings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    plot_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("plots.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    searchable_text: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding = mapped_column(Vector(768), nullable=False)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    plot: Mapped["Plot"] = relationship("Plot", back_populates="embedding")
 
 
 class Document(Base):

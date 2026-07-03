@@ -20,8 +20,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-Base.metadata.create_all(bind=engine)
 initialize_database()
+Base.metadata.create_all(bind=engine)
 
 app.include_router(plots.router)
 app.include_router(compare.router)

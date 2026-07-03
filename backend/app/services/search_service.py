@@ -57,12 +57,15 @@ def run_query_filter_fallback(
     }
 
 
-def _agent_search_message(request: UnifiedSearchRequest) -> str:
-    active_filters = request.filters.active_dict()
+def _agent_search_message(
+    request: UnifiedSearchRequest,
+    active_filters: dict[str, Any] | None = None,
+) -> str:
+    active_filters = active_filters if active_filters is not None else request.filters.active_dict()
     return (
         "Search SmartPlots using the user's natural-language query and any "
-        "structured filters below. Translate the request into supported "
-        "deterministic search filters before calling search_and_score_plots.\n\n"
+        "structured filters below. Extract only clearly stated structured "
+        "filters before calling semantic_search_and_score_plots.\n\n"
         f"User query: {request.query.strip()}\n"
         f"Structured filters JSON: {json.dumps(active_filters, sort_keys=True)}"
     )
@@ -77,6 +80,11 @@ async def run_agent_search(
     db: Session | None = None,
 ) -> dict[str, Any]:
     route = classify_search_query(request.query)
+    extracted_filters = extract_query_filters(
+        request.query.strip(),
+        request.filters.to_filters(),
+    )
+    active_filters = active_plot_filters(extracted_filters)
     session_id = str(uuid.uuid4())
     session_service = InMemorySessionService()
     await session_service.create_session(
@@ -96,7 +104,11 @@ async def run_agent_search(
             session_id=session_id,
             new_message=adk_types.Content(
                 role="user",
-                parts=[adk_types.Part.from_text(text=_agent_search_message(request))],
+                parts=[
+                    adk_types.Part.from_text(
+                        text=_agent_search_message(request, active_filters)
+                    )
+                ],
             ),
         ):
             if event.is_final_response() and event.content and event.content.parts:

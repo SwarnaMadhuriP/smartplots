@@ -2,12 +2,115 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
-from sqlalchemy import or_
+from sqlalchemy import false, or_
 from sqlalchemy.orm import Query, Session
 
 from app.models import Plot
 from app.services.sorting_service import SortOption, apply_plot_sort
 import re
+
+STATE_ALIASES = {
+    "al": "AL",
+    "alabama": "AL",
+    "ak": "AK",
+    "alaska": "AK",
+    "az": "AZ",
+    "arizona": "AZ",
+    "ar": "AR",
+    "arkansas": "AR",
+    "ca": "CA",
+    "california": "CA",
+    "co": "CO",
+    "colorado": "CO",
+    "ct": "CT",
+    "connecticut": "CT",
+    "de": "DE",
+    "delaware": "DE",
+    "fl": "FL",
+    "florida": "FL",
+    "ga": "GA",
+    "georgia": "GA",
+    "hi": "HI",
+    "hawaii": "HI",
+    "id": "ID",
+    "idaho": "ID",
+    "il": "IL",
+    "illinois": "IL",
+    "in": "IN",
+    "indiana": "IN",
+    "ia": "IA",
+    "iowa": "IA",
+    "ks": "KS",
+    "kansas": "KS",
+    "ky": "KY",
+    "kentucky": "KY",
+    "la": "LA",
+    "louisiana": "LA",
+    "me": "ME",
+    "maine": "ME",
+    "md": "MD",
+    "maryland": "MD",
+    "ma": "MA",
+    "massachusetts": "MA",
+    "mi": "MI",
+    "michigan": "MI",
+    "mn": "MN",
+    "minnesota": "MN",
+    "ms": "MS",
+    "mississippi": "MS",
+    "mo": "MO",
+    "missouri": "MO",
+    "mt": "MT",
+    "montana": "MT",
+    "ne": "NE",
+    "nebraska": "NE",
+    "nv": "NV",
+    "nevada": "NV",
+    "nh": "NH",
+    "new hampshire": "NH",
+    "nj": "NJ",
+    "new jersey": "NJ",
+    "nm": "NM",
+    "new mexico": "NM",
+    "ny": "NY",
+    "new york": "NY",
+    "nc": "NC",
+    "north carolina": "NC",
+    "nd": "ND",
+    "north dakota": "ND",
+    "oh": "OH",
+    "ohio": "OH",
+    "ok": "OK",
+    "oklahoma": "OK",
+    "or": "OR",
+    "oregon": "OR",
+    "pa": "PA",
+    "pennsylvania": "PA",
+    "ri": "RI",
+    "rhode island": "RI",
+    "sc": "SC",
+    "south carolina": "SC",
+    "sd": "SD",
+    "south dakota": "SD",
+    "tn": "TN",
+    "tennessee": "TN",
+    "tx": "TX",
+    "texas": "TX",
+    "ut": "UT",
+    "utah": "UT",
+    "vt": "VT",
+    "vermont": "VT",
+    "va": "VA",
+    "virginia": "VA",
+    "wa": "WA",
+    "washington": "WA",
+    "wv": "WV",
+    "west virginia": "WV",
+    "wi": "WI",
+    "wisconsin": "WI",
+    "wy": "WY",
+    "wyoming": "WY",
+}
 
 
 @dataclass(slots=True)
@@ -26,6 +129,7 @@ class PlotSearchFilters:
     water_access: bool | None = None
     electricity: bool | None = None
     sewer: bool | None = None
+    candidate_ids: list[int] | None = None
 
 
 def parse_number(value: str, suffix: str | None = None) -> float | None:
@@ -49,6 +153,19 @@ def extract_query_filters(query: str, filters: PlotSearchFilters) -> PlotSearchF
 
     extracted = False
     next_filters = replace(filters)
+
+    if next_filters.state is None:
+        for alias, abbreviation in STATE_ALIASES.items():
+            is_abbreviation = len(alias) == 2
+            pattern = (
+                rf"\b(?:in|near|around)\s+{re.escape(alias)}\b"
+                if is_abbreviation
+                else rf"\b{re.escape(alias)}\b"
+            )
+            if re.search(pattern, text):
+                next_filters.state = abbreviation
+                extracted = True
+                break
 
     max_price_match = re.search(
         r"\b(?:under|below|less than|max(?:imum)?|budget(?: of)?)\s+\$?([\d,.]+)\s*([km])?\b",
@@ -136,7 +253,11 @@ def extract_query_filters(query: str, filters: PlotSearchFilters) -> PlotSearchF
             "commercial",
             "agricultural",
         }
-        if city_text and not city_words.intersection(non_city_words):
+        if (
+            city_text
+            and city_text.lower() not in STATE_ALIASES
+            and not city_words.intersection(non_city_words)
+        ):
             next_filters.city = city_text.title()
             extracted = True
 
@@ -148,6 +269,10 @@ def extract_query_filters(query: str, filters: PlotSearchFilters) -> PlotSearchF
 
 def apply_plot_filters(query: Query, filters: PlotSearchFilters) -> Query:
     """Apply deterministic, structured filters to a Plot SQLAlchemy query."""
+    if filters.candidate_ids is not None:
+        if not filters.candidate_ids:
+            return query.filter(false())
+        query = query.filter(Plot.id.in_(filters.candidate_ids))
     if filters.city:
         query = query.filter(Plot.city.ilike(f"%{filters.city.strip()}%"))
     if filters.state:
