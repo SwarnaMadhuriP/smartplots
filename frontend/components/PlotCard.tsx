@@ -13,10 +13,18 @@ type Props = {
   isBestMatch?: boolean;
 };
 
-function getStandoutSignals(plot: Plot): string[] {
-  const signals: string[] = [];
-  const addSignal = (signal: string) => {
-    if (signals.length < 3 && !signals.includes(signal)) {
+type StandoutSignal = {
+  icon: string;
+  label: string;
+};
+
+function getStandoutSignals(plot: Plot): StandoutSignal[] {
+  const signals: StandoutSignal[] = [];
+  const addSignal = (signal: StandoutSignal) => {
+    if (
+      signals.length < 3 &&
+      !signals.some((item) => item.label === signal.label)
+    ) {
       signals.push(signal);
     }
   };
@@ -34,22 +42,22 @@ function getStandoutSignals(plot: Plot): string[] {
     .join(' ')
     .toLowerCase();
 
-  if (
-    /tech|microsoft|amazon|nintendo|domain|legacy west|star|corridor/.test(text)
-  ) {
-    addSignal('Tech corridor demand');
+  if (/tech|microsoft|amazon|nintendo|domain|legacy west|star/.test(text)) {
+    addSignal({ icon: '🏢', label: 'Tech corridor' });
+  } else if (/corridor|growth corridor/.test(text)) {
+    addSignal({ icon: '📈', label: 'Growth corridor' });
   }
   if (/downtown|urban|infill|brooklyn|queens|hudson|metro-north/.test(text)) {
-    addSignal('Urban infill upside');
+    addSignal({ icon: '🏙️', label: 'Urban infill upside' });
   }
   if (/lake|waterfront|beach|bay|river|coastal|sound|pier/.test(text)) {
-    addSignal('Lifestyle location draw');
+    addSignal({ icon: '🌊', label: 'Lifestyle location' });
   }
   if (/mountain|tahoe|sedona|flagstaff|yosemite|recreation|cabin/.test(text)) {
-    addSignal('Recreation lifestyle appeal');
+    addSignal({ icon: '🏕️', label: 'Recreation appeal' });
   }
   if (/airport|port|highway|logistics|industrial/.test(text)) {
-    addSignal('Access-driven upside');
+    addSignal({ icon: '🚗', label: 'Excellent road access' });
   }
 
   const utilityCount = [
@@ -60,29 +68,37 @@ function getStandoutSignals(plot: Plot): string[] {
   ].filter(Boolean).length;
 
   if (utilityCount === 4) {
-    addSignal('Build-ready infrastructure');
+    addSignal({ icon: '⚡', label: 'Utilities available' });
   } else if (utilityCount >= 3) {
-    addSignal('Strong utility readiness');
+    addSignal({ icon: '⚡', label: 'Strong utility readiness' });
   }
 
   const zoning = (plot.zoning_type ?? plot.zone ?? '').toLowerCase();
   if (/commercial|mixed/.test(zoning)) {
-    addSignal('Flexible development potential');
+    addSignal({ icon: '🏗️', label: 'Flexible development' });
   } else if (/residential/.test(zoning)) {
-    addSignal('Residential build potential');
+    addSignal({ icon: '🏡', label: 'Residential build potential' });
   } else if (/agricultural|ranch|farm|vineyard/.test(text)) {
-    addSignal('Rural land use potential');
+    addSignal({ icon: '🌾', label: 'Rural land use potential' });
   }
 
-  if (plot.appreciation === 'High') addSignal('Strong appreciation outlook');
-  if (plot.liquidity === 'High') addSignal('Resale-friendly profile');
-  if (plot.riskLevel === 'Low') addSignal('Lower-risk fundamentals');
+  if (plot.appreciation === 'High') {
+    addSignal({ icon: '📈', label: 'Strong appreciation potential' });
+  }
+  if (plot.liquidity === 'High') {
+    addSignal({ icon: '💰', label: 'Resale-friendly profile' });
+  }
+  if (plot.riskLevel === 'Low') {
+    addSignal({ icon: '🛡️', label: 'Lower-risk fundamentals' });
+  }
 
   const fallbackSignals = plot.highlights?.length
     ? plot.highlights
     : plot.reasons;
 
-  fallbackSignals.forEach((signal) => addSignal(signal));
+  fallbackSignals.forEach((signal) =>
+    addSignal({ icon: '✓', label: signal }),
+  );
 
   return signals.slice(0, 3);
 }
@@ -177,7 +193,10 @@ export default function PlotCard({
 
             <ul className="space-y-2 text-sm leading-relaxed text-slate-600">
               {standoutSignals.map((signal) => (
-                <li key={signal}>✓ {signal}</li>
+                <li key={signal.label} className="flex items-start gap-2">
+                  <span className="shrink-0">{signal.icon}</span>
+                  <span>{signal.label}</span>
+                </li>
               ))}
             </ul>
           </div>
