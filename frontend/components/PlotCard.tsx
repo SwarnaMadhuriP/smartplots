@@ -28,11 +28,10 @@ export default function PlotCard({
       onClick={onSelect}
       role="button"
       tabIndex={0}
-      className={`grid w-full grid-cols-[36%_1fr] overflow-hidden rounded-3xl text-left transition hover:-translate-y-1 hover:shadow-xl ${
-        selected
-          ? 'border-2 border-[#C7745A] bg-white shadow-xl shadow-[#D8B4A6]/50 ring-4 ring-[#F3E6E1]'
-          : 'border border-transparent bg-white shadow-sm'
-      }`}
+      className={`grid w-full grid-cols-[36%_1fr] overflow-hidden rounded-3xl text-left transition hover:-translate-y-1 hover:shadow-xl ${selected
+        ? 'border-2 border-[#C7745A] bg-white shadow-xl shadow-[#D8B4A6]/50 ring-4 ring-[#F3E6E1]'
+        : 'border border-transparent bg-white shadow-sm'
+        }`}
     >
       <div className="relative h-full min-h-[280px]">
         <Image
@@ -80,15 +79,14 @@ export default function PlotCard({
               </p>
 
               <p className="mt-1 text-xs font-medium leading-tight text-slate-500">
-                AI Match Score
+                Match Score
               </p>
             </div>
           </div>
 
           <div className="mt-5 rounded-2xl bg-[#F3ECE5] p-4">
             <p className="mb-2 text-sm font-semibold text-slate-900">
-              Why this matches you
-            </p>
+              Why This Plot            </p>
 
             <ul className="space-y-2 text-sm leading-relaxed text-slate-600">
               {(plot.aiReasons?.length ? plot.aiReasons : plot.reasons).map(
@@ -101,20 +99,16 @@ export default function PlotCard({
         </div>
 
         <div className="mt-5 flex items-center gap-3">
-          <span className="mr-auto rounded-2xl bg-[#F3E6E1] px-4 py-2 text-sm font-semibold text-[#B8644C] transition hover:bg-[#EADBD4]">
-            View details
-          </span>
 
           <button
             onClick={(e) => {
               e.stopPropagation();
               onToggleCompare?.();
             }}
-            className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-              isCompared
-                ? 'border-[#C7745A] bg-[#F3E6E1] text-[#C7745A]'
-                : 'border-[#E7D3CC] bg-white text-slate-600 hover:bg-[#F3E6E1]'
-            }`}
+            className={`rounded-full border px-4 py-2 text-sm font-medium transition ${isCompared
+              ? 'border-[#C7745A] bg-[#F3E6E1] text-[#C7745A]'
+              : 'border-[#E7D3CC] bg-white text-slate-600 hover:bg-[#F3E6E1]'
+              }`}
           >
             {isCompared ? 'Added to Compare' : 'Compare'}
           </button>
@@ -124,11 +118,10 @@ export default function PlotCard({
               e.stopPropagation();
               onToggleWatchlist();
             }}
-            className={`flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-medium transition ${
-              isSaved
-                ? 'border-[#C7745A] bg-[#F3E6E1] text-[#C7745A]'
-                : 'border-[#E7D3CC] bg-white text-slate-600 hover:bg-[#F3E6E1]'
-            }`}
+            className={`flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-medium transition ${isSaved
+              ? 'border-[#C7745A] bg-[#F3E6E1] text-[#C7745A]'
+              : 'border-[#E7D3CC] bg-white text-slate-600 hover:bg-[#F3E6E1]'
+              }`}
           >
             <Heart
               size={15}

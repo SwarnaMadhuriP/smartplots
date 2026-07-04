@@ -1,19 +1,27 @@
 'use client';
 
-import Image from 'next/image';
 import {
+  BadgeCheck,
+  CircleDollarSign,
+  ClipboardList,
   MapPin,
-  MoreVertical,
   FileText,
+  Gauge,
+  Home,
+  MapPinned,
   RefreshCw,
+  Route,
+  ShieldAlert,
+  TrendingUp,
+  Waves,
   X,
+  Zap,
   ChevronDown,
   ChevronUp,
-  Maximize2,
-  Minimize2,
   ThumbsUp,
   ThumbsDown,
   AlertTriangle,
+  Droplets,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { Plot } from '@/data/mockPlots';
@@ -49,11 +57,57 @@ export default function RightPanel({ plot }: Props) {
 }
 
 const SUGGESTED_QUESTIONS = [
-  { label: '📈 Investment Potential', query: 'Is this plot worth investing in?' },
-  { label: '📜 Zoning & Rules', query: 'What are the zoning restrictions and land use rules?' },
-  { label: '⚡ Utilities Check', query: 'What utilities and road access are available?' },
-  { label: '⚠️ Risk Analysis', query: 'What are the key risk factors mentioned in reports?' },
+  { label: 'Investment Potential', query: 'Is this plot worth investing in?' },
+  { label: 'Zoning & Rules', query: 'What are the zoning restrictions and land use rules?' },
+  { label: 'Utilities Check', query: 'What utilities and road access are available?' },
+  { label: 'Risk Analysis', query: 'What are the key risk factors mentioned in reports?' },
 ];
+
+const PROPERTY_DOCUMENTS = [
+  { label: 'Property Brochure', file: 'brochure.pdf' },
+  { label: 'Property Fact Sheet', file: 'property_fact_sheet.pdf' },
+  { label: 'Zoning Information', file: 'zoning_report.pdf' },
+  { label: 'Utility Report', file: 'utility_report.pdf' },
+  { label: 'Soil Report', file: 'soil_report.pdf' },
+  { label: 'Investment Report', file: 'investment_report.pdf' },
+  { label: 'County Growth Report', file: 'county_growth_report.pdf' },
+  { label: 'Neighborhood Guide', file: 'neighborhood_guide.pdf' },
+  { label: 'Property Disclosure', file: 'property_disclosure.pdf' },
+  { label: 'Due Diligence Checklist', file: 'due_diligence_checklist.pdf' },
+];
+
+const API_BASE = process.env.NEXT_PUBLIC_BACKENDAPI_BASE_URL ?? '';
+
+function splitField(value?: string | null) {
+  return (value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function formatStatus(status?: string | null) {
+  if (!status) return 'Available';
+  return status.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function availabilityLabel(value?: boolean) {
+  if (value === true) return 'Available';
+  if (value === false) return 'Not confirmed';
+  return 'Unknown';
+}
+
+function developmentReadiness(plot: Plot) {
+  const availableUtilities = [
+    plot.road_access,
+    plot.water_access,
+    plot.electricity,
+    plot.sewer,
+  ].filter(Boolean).length;
+
+  if (availableUtilities >= 4) return 'High';
+  if (availableUtilities >= 2) return 'Moderate';
+  return 'Early stage';
+}
 
 function RightPanelContent({ plot }: Props) {
   const [question, setQuestion] = useState('');
@@ -70,7 +124,6 @@ function RightPanelContent({ plot }: Props) {
   const [showParcelData, setShowParcelData] = useState(false);
   const [feedbackVote, setFeedbackVote] = useState<'up' | 'down' | null>(null);
 
-  const [isExpanded, setIsExpanded] = useState(false);
   const answerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -78,10 +131,6 @@ function RightPanelContent({ plot }: Props) {
       answerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [answer]);
-
-  function toggleExpand() {
-    setIsExpanded((prev) => !prev);
-  }
 
   async function handleAskQuestion(queryToSubmit?: string) {
     const activeQuery = queryToSubmit || question;
@@ -147,99 +196,217 @@ function RightPanelContent({ plot }: Props) {
   }
 
   const cleanAnswer = answer.replace(/\s*\(Source:[^)]+\)/gi, '').trim();
+  const idealFor = splitField(plot.ideal_for);
+  const nearbyLandmarks = splitField(plot.nearby_landmarks);
+  const fallbackIdealFor = idealFor.length > 0 ? idealFor : plot.highlights;
+  const documentHref = (file: string) =>
+    `${API_BASE}/uploads/documents/plot-${plot.id}/${file}`;
 
   return (
     <aside
-      className={`relative h-screen shrink-0 border-l border-[#E7D3CC] bg-[#F8F3ED] transition-all duration-200 ${isExpanded ? 'w-[720px]' : 'w-[440px]'}`}
+      className="relative h-screen w-[440px] shrink-0 border-l border-[#E7D3CC] bg-[#F8F3ED]"
     >
       {/* Scrollable content */}
       <div className="h-full overflow-y-auto">
         <div className="p-6">
-          <div className="rounded-3xl bg-white p-5 shadow-sm">
-            {/* Header */}
-            <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900">Plot Overview</h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={toggleExpand}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-[#C7745A] bg-stone-100 hover:bg-[#F3E6E1] px-2.5 py-1.5 rounded-xl transition shadow-xs"
-                  title={isExpanded ? 'Collapse panel' : 'Expand panel for easier reading'}
-                >
-                  {isExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-                  <span>{isExpanded ? 'Collapse' : 'Expand'}</span>
-                </button>
-                <MoreVertical size={20} className="text-slate-400 hover:text-slate-600 cursor-pointer" />
+          <div className="space-y-5">
+            {/* Property Summary */}
+            <section className="rounded-3xl bg-white p-5 shadow-sm">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#F3E6E1] text-[#B8644C]">
+                  <ClipboardList size={18} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-wide text-[#B8644C]">
+                    Property Summary
+                  </p>
+                  <h2 className="mt-3 text-xl font-bold leading-tight text-slate-950">
+                    {plot.title}
+                  </h2>
+                  <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
+                    <MapPin size={15} />
+                    {plot.city && plot.state ? `${plot.city}, ${plot.state}` : plot.location}
+                  </div>
+                </div>
               </div>
-            </div>
 
-            {/* Plot Image */}
-            <div className="relative h-56 overflow-hidden rounded-2xl bg-stone-100">
-              <Image src={plot.image} alt={plot.title} fill className="object-cover" />
-            </div>
-
-            {/* Title & Location */}
-            <h2 className="mt-8 text-2xl font-bold text-slate-950">{plot.title}</h2>
-            <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-              <MapPin size={16} />
-              {plot.location}
-            </div>
-            <p className="mt-3 text-sm text-slate-600">
-              {plot.acres} • {plot.zone}
-            </p>
-
-            {/* AI Match Score */}
-            <div className="mt-8 rounded-3xl bg-[#F3E6E1] p-6 shadow-sm">
-              <p className="text-sm font-semibold text-slate-900">AI Match Score</p>
-              <div className="mt-4 flex items-center justify-between">
-                <div>
-                  <span className="text-5xl font-bold text-[#B8644C]">{plot.matchScore}</span>
-                  <span className="text-sm text-slate-500"> /10</span>
+              <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-2xl bg-[#FAF5F2] px-3 py-3">
+                  <p className="text-xs font-medium text-slate-500">Area</p>
+                  <p className="mt-1 font-bold text-slate-950">{plot.acres}</p>
                 </div>
-                <p className="w-32 text-sm leading-relaxed text-slate-600">
-                  Ranked using your search intent
-                </p>
+                <div className="rounded-2xl bg-[#FAF5F2] px-3 py-3">
+                  <p className="text-xs font-medium text-slate-500">Zoning</p>
+                  <p className="mt-1 font-bold capitalize text-slate-950">
+                    {plot.zoning_type ?? plot.zone}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-[#FAF5F2] px-3 py-3">
+                  <p className="text-xs font-medium text-slate-500">Price</p>
+                  <p className="mt-1 font-bold text-[#B8644C]">{plot.price}</p>
+                </div>
+                <div className="rounded-2xl bg-[#FAF5F2] px-3 py-3">
+                  <p className="text-xs font-medium text-slate-500">Status</p>
+                  <p className="mt-1 font-bold text-slate-950">
+                    {formatStatus(plot.status)}
+                  </p>
+                </div>
               </div>
-            </div>
+            </section>
 
-            {/* Investment Snapshot */}
-            <div className="mt-8">
-              <h4 className="font-bold text-slate-900">Investment Snapshot</h4>
-              <div className="mt-4 space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">5-Year Appreciation</span>
-                  <span className="font-semibold">{plot.appreciation}</span>
+            {/* Investment Outlook */}
+            <section className="rounded-3xl bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="font-bold text-slate-900">Investment Outlook</h4>
+              </div>
+              <div className="mt-4 grid gap-2 text-sm">
+                <div className="flex items-center justify-between rounded-2xl border border-[#F0E4DF] px-3 py-2.5">
+                  <span className="flex items-center gap-2 text-slate-500">
+                    <TrendingUp size={14} /> 5-Year Appreciation
+                  </span>
+                  <span className="font-semibold text-slate-900">{plot.appreciation}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Rental Demand</span>
-                  <span className="font-semibold">{plot.rentalDemand}</span>
+                <div className="flex items-center justify-between rounded-2xl border border-[#F0E4DF] px-3 py-2.5">
+                  <span className="flex items-center gap-2 text-slate-500">
+                    <CircleDollarSign size={14} /> Ease of Resale
+                  </span>
+                  <span className="font-semibold text-slate-900">{plot.liquidity}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Ease of Resale</span>
-                  <span className="font-semibold">{plot.liquidity}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Investment Risk</span>
+                <div className="flex items-center justify-between rounded-2xl border border-[#F0E4DF] px-3 py-2.5">
+                  <span className="flex items-center gap-2 text-slate-500">
+                    <ShieldAlert size={14} /> Investment Risk
+                  </span>
                   <span className="font-semibold text-[#B8644C]">{plot.riskLevel}</span>
                 </div>
+                <div className="flex items-center justify-between rounded-2xl border border-[#F0E4DF] px-3 py-2.5">
+                  <span className="flex items-center gap-2 text-slate-500">
+                    <Gauge size={14} /> Development Readiness
+                  </span>
+                  <span className="font-semibold text-slate-900">
+                    {developmentReadiness(plot)}
+                  </span>
+                </div>
               </div>
-            </div>
+            </section>
 
-            {/* Key Highlights */}
-            <div className="mt-8">
-              <h4 className="font-bold text-slate-900">Key Highlights</h4>
-              <ul className="mt-4 space-y-3 text-sm text-slate-600">
-                {plot.highlights.map((item) => (
-                  <li key={item}>🏡 {item}</li>
+            {/* Property Overview */}
+            <section className="rounded-3xl bg-white p-5 shadow-sm">
+              <h4 className="font-bold text-slate-900">Property Overview</h4>
+
+              <div className="mt-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Utilities
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  {[
+                    { label: 'Road Access', value: plot.road_access, icon: Route },
+                    { label: 'Water Access', value: plot.water_access, icon: Droplets },
+                    { label: 'Electricity', value: plot.electricity, icon: Zap },
+                    { label: 'Sewer', value: plot.sewer, icon: Waves },
+                  ].map(({ label, value, icon: Icon }) => (
+                    <div
+                      key={label}
+                      className="rounded-2xl border border-[#F0E4DF] bg-[#FFFCFA] px-3 py-3"
+                    >
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <Icon size={14} className="text-[#B8644C]" />
+                        {label}
+                      </div>
+                      <p className="mt-1 font-bold text-slate-950">
+                        {availabilityLabel(value)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {fallbackIdealFor.length > 0 && (
+                <div className="mt-5">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                    Ideal For
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {fallbackIdealFor.map((item) => (
+                      <span
+                        key={item}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-[#E7D3CC] bg-[#FAF5F2] px-3 py-1.5 text-xs font-semibold text-slate-700"
+                      >
+                        <Home size={12} className="text-[#B8644C]" />
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {nearbyLandmarks.length > 0 && (
+                <div className="mt-5">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                    Nearby
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {nearbyLandmarks.map((landmark) => (
+                      <span
+                        key={landmark}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-[#EDF2EC] px-3 py-1.5 text-xs font-semibold text-[#5F7666]"
+                      >
+                        <MapPinned size={12} />
+                        {landmark}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {plot.risk_notes && (
+                <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
+                  <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-amber-700">
+                    <ShieldAlert size={14} />
+                    Risk Notes
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    {plot.risk_notes}
+                  </p>
+                </div>
+              )}
+            </section>
+
+            {/* Property Documents */}
+            <section className="rounded-3xl bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h4 className="font-bold text-slate-900">Property Documents</h4>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {PROPERTY_DOCUMENTS.length} PDFs available for this plot
+                  </p>
+                </div>
+                <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#F3E6E1] text-[#B8644C]">
+                  <FileText size={17} />
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-2">
+                {PROPERTY_DOCUMENTS.map((document) => (
+                  <a
+                    key={document.file}
+                    href={documentHref(document.file)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-[#F0E4DF] bg-[#FFFCFA] px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:border-[#C7745A] hover:text-[#B8644C]"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <FileText size={14} className="shrink-0 text-[#B8644C]" />
+                      <span className="truncate">{document.label}</span>
+                    </span>
+                    <BadgeCheck size={14} className="shrink-0 text-[#5F7666]" />
+                  </a>
                 ))}
-              </ul>
-            </div>
+              </div>
+            </section>
 
             {/* Ask SmartPlots */}
             <div className="mt-6 rounded-3xl border border-[#E7D3CC] bg-white p-6 shadow-sm">
-              <h4 className="font-bold text-slate-900">Ask SmartPlots about this plot</h4>
-              <p className="mt-1 text-sm text-slate-500">
-                Powered by brochures, reports, and property records.
-              </p>
+              <h4 className="font-bold text-slate-900">Ask About This Plot</h4>
 
               {/* Suggested questions */}
               <div className="mt-4">
