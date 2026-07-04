@@ -13,6 +13,80 @@ type Props = {
   isBestMatch?: boolean;
 };
 
+function getStandoutSignals(plot: Plot): string[] {
+  const signals: string[] = [];
+  const addSignal = (signal: string) => {
+    if (signals.length < 3 && !signals.includes(signal)) {
+      signals.push(signal);
+    }
+  };
+
+  const text = [
+    plot.title,
+    plot.description,
+    plot.location,
+    plot.nearby_landmarks,
+    plot.ideal_for,
+    plot.zoning_type,
+    plot.zone,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  if (
+    /tech|microsoft|amazon|nintendo|domain|legacy west|star|corridor/.test(text)
+  ) {
+    addSignal('Tech corridor demand');
+  }
+  if (/downtown|urban|infill|brooklyn|queens|hudson|metro-north/.test(text)) {
+    addSignal('Urban infill upside');
+  }
+  if (/lake|waterfront|beach|bay|river|coastal|sound|pier/.test(text)) {
+    addSignal('Lifestyle location draw');
+  }
+  if (/mountain|tahoe|sedona|flagstaff|yosemite|recreation|cabin/.test(text)) {
+    addSignal('Recreation lifestyle appeal');
+  }
+  if (/airport|port|highway|logistics|industrial/.test(text)) {
+    addSignal('Access-driven upside');
+  }
+
+  const utilityCount = [
+    plot.road_access,
+    plot.water_access,
+    plot.electricity,
+    plot.sewer,
+  ].filter(Boolean).length;
+
+  if (utilityCount === 4) {
+    addSignal('Build-ready infrastructure');
+  } else if (utilityCount >= 3) {
+    addSignal('Strong utility readiness');
+  }
+
+  const zoning = (plot.zoning_type ?? plot.zone ?? '').toLowerCase();
+  if (/commercial|mixed/.test(zoning)) {
+    addSignal('Flexible development potential');
+  } else if (/residential/.test(zoning)) {
+    addSignal('Residential build potential');
+  } else if (/agricultural|ranch|farm|vineyard/.test(text)) {
+    addSignal('Rural land use potential');
+  }
+
+  if (plot.appreciation === 'High') addSignal('Strong appreciation outlook');
+  if (plot.liquidity === 'High') addSignal('Resale-friendly profile');
+  if (plot.riskLevel === 'Low') addSignal('Lower-risk fundamentals');
+
+  const fallbackSignals = plot.highlights?.length
+    ? plot.highlights
+    : plot.reasons;
+
+  fallbackSignals.forEach((signal) => addSignal(signal));
+
+  return signals.slice(0, 3);
+}
+
 export default function PlotCard({
   plot,
   selected,
@@ -23,6 +97,8 @@ export default function PlotCard({
   onToggleCompare,
   isBestMatch = false,
 }: Props) {
+  const standoutSignals = getStandoutSignals(plot);
+
   return (
     <div
       onClick={onSelect}
@@ -73,27 +149,36 @@ export default function PlotCard({
               </p>
             </div>
 
-            <div className="rounded-2xl bg-[#EDF2EC] px-5 py-4 text-center">
-              <p className="text-3xl font-bold text-[#5F7666]">
-                {plot.matchScore}
+            <div className="w-[156px] shrink-0 rounded-2xl border border-[#E7D3CC] bg-[#FAF5F2] px-4 py-3 shadow-sm">
+              <div className="flex items-end gap-1">
+                <span className="text-4xl font-bold leading-none text-[#B8644C]">
+                  {plot.matchScore}
+                </span>
+                <span className="pb-1 text-sm font-semibold text-slate-500">/10</span>
+              </div>
+
+              <p className="mt-2 text-xs font-bold leading-snug text-slate-700">
+                Plot Readiness Score
               </p>
 
-              <p className="mt-1 text-xs font-medium leading-tight text-slate-500">
-                Match Score
-              </p>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white">
+                <div
+                  className="h-full rounded-full bg-[#C7745A]"
+                  style={{ width: `${Math.max(0, Math.min(10, plot.matchScore)) * 10}%` }}
+                />
+              </div>
             </div>
           </div>
 
           <div className="mt-5 rounded-2xl bg-[#F3ECE5] p-4">
             <p className="mb-2 text-sm font-semibold text-slate-900">
-              Why This Plot            </p>
+              Why It Stands Out
+            </p>
 
             <ul className="space-y-2 text-sm leading-relaxed text-slate-600">
-              {(plot.aiReasons?.length ? plot.aiReasons : plot.reasons).map(
-                (reason) => (
-                  <li key={reason}>✓ {reason}</li>
-                ),
-              )}
+              {standoutSignals.map((signal) => (
+                <li key={signal}>✓ {signal}</li>
+              ))}
             </ul>
           </div>
         </div>
