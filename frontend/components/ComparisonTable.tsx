@@ -66,14 +66,6 @@ export default function ComparisonTable({ plots, profiles }: Props) {
             {profiles && (
               <>
                 <Row
-                  label="AI Suitability Score"
-                  values={plots.map((p) => {
-                    const score = profileMap.get(p.id)?.suitability_score;
-                    return score !== undefined ? `${score} / 10` : 'N/A';
-                  })}
-                  isHighlight
-                />
-                <Row
                   label="Key Trade-offs"
                   values={plots.map((p) => {
                     return profileMap.get(p.id)?.key_tradeoff || 'N/A';
@@ -136,11 +128,10 @@ function Row({
       {values.map((value, index) => (
         <td
           key={`${label}-${index}`}
-          className={`border-t border-[#E7D3CC] p-4 text-sm ${
-            isHighlight
+          className={`border-t border-[#E7D3CC] p-4 text-sm ${isHighlight
               ? 'font-bold text-[#B8644C] bg-white'
               : 'text-slate-700 bg-white'
-          }`}
+            }`}
         >
           {value}
         </td>

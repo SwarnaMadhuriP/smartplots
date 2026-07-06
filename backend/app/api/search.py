@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.services.routing_service import SearchRoute, classify_search_query
-from app.schemas.search import SmartSearchRequest, UnifiedSearchRequest
+from app.schemas.search import UnifiedSearchRequest
 from app.services.search_service import run_agent_search, run_db_search
 
 router = APIRouter()

@@ -206,7 +206,7 @@ def semantic_search_and_score_plots(
             "count": len(ranked_plots),
         }
 
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return search_and_score_plots(
             query=query,
             search_term=search_term,

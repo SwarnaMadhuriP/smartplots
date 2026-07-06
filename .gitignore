@@ -9,6 +9,7 @@ __pycache__/
 *.pyo
 *.pyd
 .env
+.env.cloud
 .venv/
 .ruff_cache/
 

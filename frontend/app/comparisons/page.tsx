@@ -197,12 +197,12 @@ function ComparisonsPageContent() {
                   <div>
                     <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                       <Sparkles className="text-[#C7745A]" size={20} />
-                      AI Plot Comparison
+                      Smart Comparison
                     </h2>
                     <p className="text-sm text-slate-500 mt-1">
                       {comparisonSource === 'ai_advisor'
                         ? 'Comparing the AI Advisor recommendation against its closest alternatives.'
-                        : 'Specify an optional goal to analyze the selected plots.'}
+                        : 'Tell SmartPlots what matters most, and we\'ll compare the selected properties based on your goal.'}
                     </p>
                   </div>
 
@@ -273,8 +273,7 @@ function ComparisonsPageContent() {
                   </div>
                 ) : (
                   <div className="mt-6 text-center py-6 text-slate-400 text-sm">
-                    Enter a goal above and click Analyze to generate AI
-                    insights.
+                    Enter your goal above and click Analyze to compare the selected plots
                   </div>
                 )}
               </div>
