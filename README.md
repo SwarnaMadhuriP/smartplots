@@ -8,18 +8,14 @@ SmartPlots is an AI-powered real estate intelligence platform that helps users d
 ---
 
 ## 📸 Application Screenshots
-*Note: Capture screenshots of your local application running at http://localhost:3000 and save them to the paths below to display them.*
 
 ### Discover Listings Dashboard
-*Save screenshot to: `frontend/public/screenshots/discover_page.png`*
 ![Discover Dashboard](frontend/public/screenshots/discover_page.png)
 
-### Conversational AI Advisor
-*Save screenshot to: `frontend/public/screenshots/advisor_page.png`*
+### AI Advisor
 ![AI Advisor](frontend/public/screenshots/advisor_page.png)
 
 ### Interactive Map Explorer
-*Save screenshot to: `frontend/public/screenshots/map_page.png`*
 ![Map Explorer](frontend/public/screenshots/map_page.png)
 
 ---
