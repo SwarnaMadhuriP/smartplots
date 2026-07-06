@@ -188,7 +188,7 @@ export default function PlotCard({
 
           <div className="mt-5 rounded-2xl bg-[#F3ECE5] p-4">
             <p className="mb-2 text-sm font-semibold text-slate-900">
-              Why It Stands Out
+              Why SmartPlots Recommends This
             </p>
 
             <ul className="space-y-2 text-sm leading-relaxed text-slate-600">

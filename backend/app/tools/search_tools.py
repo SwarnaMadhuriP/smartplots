@@ -163,7 +163,7 @@ def semantic_search_and_score_plots(
             raise ValueError("No plot embeddings are available for semantic search.")
 
         filters = PlotSearchFilters(
-            search_term=None,
+            search_term=search_term,
             candidate_ids=candidate_ids,
             city=city,
             state=state,
@@ -180,7 +180,6 @@ def semantic_search_and_score_plots(
             sewer=sewer,
         )
         filters = extract_query_filters(query, filters)
-        filters.search_term = None
         filters.candidate_ids = candidate_ids
 
         plots_from_db = search_plots(db, filters)

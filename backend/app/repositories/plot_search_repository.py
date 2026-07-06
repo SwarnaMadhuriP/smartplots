@@ -112,6 +112,45 @@ STATE_ALIASES = {
     "wyoming": "WY",
 }
 
+SEARCH_FILLER_WORDS = {
+    "land",
+    "lot",
+    "lots",
+    "plot",
+    "plots",
+    "property",
+    "properties",
+    "area",
+    "areas",
+    "zone",
+    "zones",
+    "for",
+    "in",
+    "near",
+    "at",
+    "around",
+    "show",
+    "me",
+    "find",
+    "looking",
+    "search",
+    "searching",
+    "want",
+    "need",
+    "that",
+    "have",
+    "has",
+    "access",
+    "with",
+    "without",
+    "and",
+    "or",
+    "a",
+    "an",
+    "the",
+    "to",
+}
+
 
 @dataclass(slots=True)
 class PlotSearchFilters:
@@ -143,6 +182,16 @@ def parse_number(value: str, suffix: str | None = None) -> float | None:
     if suffix and suffix.lower() == "m":
         return number * 1_000_000
     return number
+
+
+def extract_search_term(query: str) -> str | None:
+    """Return a concise keyword term when the query has no structured filters."""
+    keywords = [
+        word
+        for word in re.findall(r"[a-zA-Z0-9]+", query.lower())
+        if len(word) > 1 and word not in SEARCH_FILLER_WORDS
+    ]
+    return " ".join(keywords) if keywords else None
 
 
 def extract_query_filters(query: str, filters: PlotSearchFilters) -> PlotSearchFilters:
@@ -263,6 +312,8 @@ def extract_query_filters(query: str, filters: PlotSearchFilters) -> PlotSearchF
 
     if extracted:
         next_filters.search_term = None
+    elif next_filters.search_term is None:
+        next_filters.search_term = extract_search_term(query)
 
     return next_filters
 
@@ -303,38 +354,10 @@ def apply_plot_filters(query: Query, filters: PlotSearchFilters) -> Query:
     keyword = filters.search_term.strip() if filters.search_term else ""
 
     if keyword:
-        filler_words = {
-            "land",
-            "plot",
-            "plots",
-            "property",
-            "properties",
-            "for",
-            "in",
-            "near",
-            "at",
-            "show",
-            "me",
-            "find",
-            "looking",
-            "search",
-            "searching",
-            "want",
-            "need",
-            "with",
-            "without",
-            "and",
-            "or",
-            "a",
-            "an",
-            "the",
-            "to",
-        }
-
         keywords = [
             word
             for word in re.findall(r"[a-zA-Z0-9]+", keyword.lower())
-            if len(word) > 1 and word not in filler_words
+            if len(word) > 1 and word not in SEARCH_FILLER_WORDS
         ]
 
         if keywords:

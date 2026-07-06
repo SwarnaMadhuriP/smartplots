@@ -3,6 +3,7 @@
 import { Home, Map, Sparkles, Heart, Scale, Bookmark } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import SidebarInfoCard from './SidebarInfoCard';
 
 const navItems = [
   { label: 'Discover Plots', icon: Home, href: '/' },
@@ -18,17 +19,17 @@ export default function Sidebar() {
 
   return (
     <aside className="h-screen w-64 shrink-0 border-r border-[#E7D3CC] bg-[#F8F3ED] p-6">
-      <div className="mb-10">
+      <div className="mb-8">
         <h1 className="tracking-tight text-2xl font-bold text-slate-900">
           SmartPlots
         </h1>
 
         <p className="mt-1 text-sm text-slate-500">
-          Find land. Make smarter moves.
+          AI-Powered Land Investment Advisor
         </p>
       </div>
 
-      <nav className="space-y-3">
+      <nav className="space-y-2">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive =
@@ -40,7 +41,7 @@ export default function Sidebar() {
             <Link
               key={item.label}
               href={item.href}
-              className={`flex w-full items-center gap-4 rounded-2xl px-5 py-4 text-left text-sm font-medium transition ${
+              className={`flex w-full items-center gap-4 rounded-2xl px-5 py-3.5 text-left text-sm font-medium transition ${
                 isActive
                   ? 'bg-[#C7745A] text-white shadow-lg shadow-[#E7D3CC]'
                   : 'text-slate-700 hover:bg-[#F3E6E1]'
@@ -53,20 +54,7 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="mt-16 rounded-3xl border border-[#E7D3CC] bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold leading-snug text-slate-900">
-          Land decisions deserve clarity.
-        </h2>
-
-        <p className="mt-4 text-sm leading-6 text-slate-600">
-          SmartPlots uses AI and real-world data to surface the right
-          opportunities for you.
-        </p>
-
-        <button className="mt-6 text-sm font-semibold text-[#B8644C] transition hover:text-[#9F5E49]">
-          How it works →
-        </button>
-      </div>
+      <SidebarInfoCard />
     </aside>
   );
 }

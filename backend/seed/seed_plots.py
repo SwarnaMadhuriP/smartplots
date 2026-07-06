@@ -291,13 +291,13 @@ def seed_california(db) -> None:
 
     image_data = [
         {
-            "image_url": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80",
-            "alt_text": "Buildable suburban residential lot near a Silicon Valley neighborhood",
+            "image_url": "/plot-images/san-jose-tech-corridor-residential-lot-v2.png",
+            "alt_text": "Annotated San Jose residential lot near Silicon Valley tech employers",
             "is_primary": True,
         },
         {
-            "image_url": "https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=1200&q=80",
-            "alt_text": "Flat suburban residential lot suitable for a Sacramento family home",
+            "image_url": "/plot-images/sacramento-family-build-lot.png",
+            "alt_text": "Annotated Sacramento family build lot with downtown skyline and parcel boundary",
             "is_primary": True,
         },
         {
@@ -1609,7 +1609,7 @@ def seed_new_york(db) -> None:
     print(f"Seeded {len(plots)} New York plots.")
 
 
-RESET_DB = True
+RESET_DB = False
 
 def main() -> None:
     db = SessionLocal()
@@ -1620,12 +1620,12 @@ def main() -> None:
             reset_demo_data(db)
         else:
             print("Skipping demo data reset. Using existing data.")
-        seed_california(db)
-        seed_washington(db)
-        seed_texas(db)
-        seed_arizona(db)
-        seed_florida(db)
-        seed_new_york(db)
+        # seed_california(db)
+        # seed_washington(db)
+        # seed_texas(db)
+        # seed_arizona(db)
+        # seed_florida(db)
+        # seed_new_york(db)
         print("Done. Seeded demo plots and primary images.")
     finally:
         db.close()
