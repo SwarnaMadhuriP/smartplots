@@ -54,22 +54,76 @@ Enables side-by-side analysis of multiple plots against a user's specified goal.
 *   **Structured Analysis**: Invokes Gemini (`gemini-2.5-flash`) with a strict schema constraint (`ComparisonResponse`).
 *   **Outputs**: Assigns custom "awards" to each plot (e.g. *"Lowest Risk"* or *"Best Value"*) and provides a detailed breakdown of pros and cons relative to the user's specific goals.
 
-### 🧠 3. AI Advisor
-Goal-based land evaluation routing through a directed-graph state machine.
-*   **Graph State**: Managed via a shared context object (`WorkflowState`) passed sequentially through processing nodes.
-*   **Scoring & RAG**: Filters and scores the catalog in Python before executing document semantic search (RAG) against PDF brochures and utility records.
-*   **Dynamic Router**:
-    *   **Fast Path**: Directly returns a recommendation if there is a clear, high-scoring winner with a large gap and no notices.
-    *   **Specialist Path (Multi-Agent Panel)**: For close or complex matches, it triggers specialized analysis nodes:
-        *   *Investment Node*: Scores appreciation, price per acre, and budget fit.
-        *   *Risk Node*: Scores zoning, utilities, and flooding hazards.
-        *   *Location Node*: Evaluates accessibility and purpose suitability.
-        *   *Document Intelligence Node*: Extracts relevant zoning and deed facts from raw PDFs.
-*   **Synthesis**: Enriches the Gemini prompt with the active specialist reports to generate the final recommendation.
+---
+
+### 🧠 3. AI Advisor (ADK Graph Workflow)
+
+The AI Advisor uses a directed-graph state machine where state flows through sequential execution nodes. Depending on the score margin and the user's goal complexity, it dynamically decides to route requests through a lightweight path or a comprehensive multi-agent specialist panel.
+
+#### Complete Workflow Diagram
+
+```mermaid
+flowchart TD
+    %% Workflow Initialization
+    Input([User Goal & Preferences]) --> N1[1. Input Guard Node]
+    N1 --> N2[2. Preference Context Node]
+    N2 --> N3[3. Deterministic Scorer Node]
+    N3 --> N4[4. RAG Retrieval Node]
+    N4 --> N5[5. Decision Router Node]
+    
+    %% Router Decision
+    N5 -->|Fast Path: clear winner| N6A[6a. Fast Recommendation Node]
+    N5 -->|Specialist Path: complex/close match| N6B[6b. Specialist Panel Orchestrator]
+    
+    %% Specialist Panel Routing
+    subgraph Specialist Panel [Specialist Panel: Goal-Based Agent Routing]
+        direction TB
+        N6B --> G_Route{Map Goal to Specialists}
+        
+        %% Goals to Specialists
+        G_Route -->|build_home| SH[Run 3 Agents: Risk + Location + Doc Intel]
+        G_Route -->|invest_appreciation| SA[Run 3 Agents: Investment + Risk + Location]
+        G_Route -->|retirement_lifestyle| SR[Run 3 Agents: Location + Risk + Doc Intel]
+        G_Route -->|commercial| SC[Run 3 Agents: Investment + Location + Doc Intel]
+        G_Route -->|maximize_value| SM[Run 2 Agents: Investment + Risk]
+        
+        %% Execution Mapping
+        SH & SA & SR & SC & SM --> Node_Exec{Dispatch Agent Nodes}
+        
+        Node_Exec --> InvestmentAgent[Investment Agent]
+        Node_Exec --> RiskAgent[Risk Agent]
+        Node_Exec --> LocationAgent[Location Agent]
+        Node_Exec --> DocAgent[Document Intel Agent]
+    end
+    
+    %% Synthesis & Composer
+    InvestmentAgent & RiskAgent & LocationAgent & DocAgent --> N7[6c. Specialist Review Node: Gemini Synthesis]
+    N6A --> N8[7. Recommendation Composer Node]
+    N7 --> N8
+    N8 --> Output([Structured JSON Recommendation])
+
+    style Specialist Panel fill:#fcf8f2,stroke:#c7745a,stroke-width:2px;
+```
+
+#### Goal-to-Agent Routing Rules
+To minimize tokens and latency, the Specialist Panel only runs the domain agents relevant to the user's selected goal:
+
+| Goal (`GoalKey`) | Number of Active Agents | Executed Agent Nodes | Agent Responsibility |
+| :--- | :---: | :--- | :--- |
+| `build_home` | **3** | Risk, Location, Document Intelligence | Evaluates local soil/flooding hazards, school proximity, accessibility, and crawls deed HOA zoning restrictions from raw PDFs. |
+| `invest_appreciation` | **3** | Investment, Risk, Location | Analyzes holding timelines, price/acre vs market norms, long-term zoning changes, and proximity to regional growth indicators. |
+| `retirement_lifestyle` | **3** | Location, Risk, Document Intelligence | Prioritizes quiet neighborhood noise ratings, access to medical facilities, utility reliability, and HOA land usage restrictions. |
+| `commercial` | **3** | Investment, Location, Document Intelligence | Evaluates development readiness, road frontage easements, traffic flow proximity, and commercial zoning guidelines inside municipal code PDFs. |
+| `maximize_value` | **2** | Investment, Risk | Direct comparison of price-per-acre margins, utility readiness, and critical infrastructure risk adjustments. |
+
+*   **Fast Path**: Triggered when a single plot scores high ($\ge$ 8.5), has a clear margin over the second-best plot ($\ge$ 1.0), and has zero preflight notices. It calls Gemini once to generate a brief recommendation layout.
+*   **Specialist Path**: Triggered when scores are close, warnings are present, or a complex/refinement goal is submitted. Runs the selected specialized agents before calling Gemini to compile a comprehensive, cited recommendation.
+
+---
 
 ### 🔄 4. Human-in-the-Loop (HITL) Feedback Loop
 Enables conversational preference adjustment and interactive recommendation refinement.
-*   **Feedback Mapping**: Translates user corrections (e.g., *"This is too expensive"* or *"I need electricity"* ) into updated query constraints.
+*   **Feedback Mapping**: Translates user corrections (e.g., *"This is too expensive"* or *"I need electricity"*) into updated query constraints.
 *   **Workflow Re-entry**: Session states are updated in the database, and a refinement workflow is triggered.
 *   **Forced Specialist Route**: Refinement passes are routed strictly through the **Specialist Path** to re-analyze alternatives carefully and detail the tradeoffs of the new recommendation.
 
