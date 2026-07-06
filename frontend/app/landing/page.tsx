@@ -454,7 +454,7 @@ export default function LandingPage() {
               <span className="h-3 w-3 rounded-full bg-[#E9D2A9]" />
               <span className="h-3 w-3 rounded-full bg-[#9AC5A6]" />
               <div className="ml-4 flex h-9 flex-1 items-center rounded-full bg-[#F8F3ED] px-4 text-sm font-semibold text-slate-500">
-                smartplots.ai/insights
+                smartplots/advisor
               </div>
             </div>
 

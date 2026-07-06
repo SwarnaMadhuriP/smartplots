@@ -41,11 +41,10 @@ export default function Sidebar() {
             <Link
               key={item.label}
               href={item.href}
-              className={`flex w-full items-center gap-4 rounded-2xl px-5 py-3.5 text-left text-sm font-medium transition ${
-                isActive
-                  ? 'bg-[#C7745A] text-white shadow-lg shadow-[#E7D3CC]'
-                  : 'text-slate-700 hover:bg-[#F3E6E1]'
-              }`}
+              className={`flex w-full items-center gap-4 rounded-2xl px-5 py-3.5 text-left text-sm font-medium transition ${isActive
+                ? 'bg-[#C7745A] text-white shadow-lg shadow-[#E7D3CC]'
+                : 'text-slate-700 hover:bg-[#F3E6E1]'
+                }`}
             >
               <Icon size={20} />
               {item.label}

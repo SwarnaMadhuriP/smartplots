@@ -97,7 +97,7 @@ const GOAL_LABELS: Record<GoalKey, string> = {
 };
 
 function imageForPlot(plotId: number) {
-  return PLOT_IMAGES_BY_ID[plotId] ?? PLOT_IMAGES_BY_ID[1];
+  return `/plots/plot-${plotId}.png`;
 }
 
 function clampScore(value: number, max = 100) {

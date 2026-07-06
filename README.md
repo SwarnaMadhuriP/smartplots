@@ -3,11 +3,13 @@
 ### AI-Powered Real Estate & Land Intelligence  
 *Find Your Plot, Smarter.*
 
-SmartPlots is an AI-powered real estate intelligence platform that helps users discover, analyze, and evaluate land plots. Navigating zoning ordinances, utility access, deed restrictions, and long-term appreciation is notoriously complex. SmartPlots combines structured database queries with a state-of-the-art **multi-agent AI pipeline** to deliver instant, customized real estate advice.
+SmartPlots is an AI-powered real estate intelligence platform that helps users discover, analyze, and evaluate land plots. Navigating zoning ordinaces, utility access, deed restrictions, and long-term appreciation is notoriously complex. SmartPlots combines structured database queries with a state-of-the-art **multi-agent AI pipeline** to deliver instant, customized real estate advice.
 
 ---
 
-## 📸 Application Screenshots
+## 📸 Screenshots
+### Landing Page
+![Landing Page](frontend/public/screenshots/landing_page.png)
 
 ### Discover Listings Dashboard
 ![Discover Dashboard](frontend/public/screenshots/discover_page.png)
@@ -125,11 +127,13 @@ Enables conversational preference adjustment and interactive recommendation refi
 
 ---
 
-## 🛠️ Tech Stack
+## 🛠️ Tech Stack & Infrastructure
 
-*   **Frontend**: Next.js (TypeScript), Tailwind CSS, Leaflet Maps
-*   **Backend**: FastAPI (Python), SQLAlchemy, PostgreSQL + `pgvector`
+*   **Frontend**: Next.js (TypeScript), Tailwind CSS, Leaflet Maps (Deployed & Hosted on **Vercel**)
+*   **Backend**: FastAPI (Python), SQLAlchemy, PostgreSQL + `pgvector` (Deployed on **GCP Cloud Run**)
+*   **Database**: **GCP Cloud SQL (PostgreSQL)** with `pgvector` enabled for production, local PostgreSQL via Docker for development
 *   **AI/LLM**: Google ADK (Agent Development Kit), Gemini 2.5 Flash
+
 
 ---
 
@@ -216,3 +220,14 @@ docker compose up -d
    npm run dev
    ```
    *   *Frontend app runs at: http://localhost:3000*
+
+---
+
+## 🔮 Future Enhancements
+
+*   **⚡ Pub/Sub Event-Driven Agents**: Transition to an event-driven architecture (using Redis or Cloud Pub/Sub). When a new plot is added to the database, background agents automatically trigger to vectorize attached documents, run baseline investment/risk evaluations, and notify matched users with saved searches.
+*   **🔒 Security & Prompt Guardrails**: Introduce robust prompt injection protection and sandbox agent tool execution. Ensure strict data isolation so that raw zoning reports or private deeds uploaded by one user are not accessible during other users' RAG queries.
+*   **🔌 Real-Time Data Integration**: Replace the static mock database seeds with direct API connections to live real estate platforms, county tax assessor portals, and municipal zoning databases to ensure real-time valuation and pricing accuracy.
+*   **🗺️ GIS & Spatial Mapping Overlays**: Add Leaflet map layer overlays for flood zones, municipal zoning classifications, wetlands, and topographic contours, enabling the Risk and Location Agents to run precise spatial intersection calculations.
+*   **🌐 Internationalization & Language Support**: Add full localization support to the frontend and configure the AI agents to accept queries and generate synthesized recommendations in multiple languages to support international land buyers.
+
