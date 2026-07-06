@@ -70,10 +70,6 @@ def _agent_search_message(
         f"Structured filters JSON: {json.dumps(active_filters, sort_keys=True)}"
     )
 
-# TODO:
-# Debug ai_search_ranking_explainer_agent.
-# If the explainer returns no final response, investigate ADK event flow
-# and session state propagation.
 
 async def run_agent_search(
     request: UnifiedSearchRequest,

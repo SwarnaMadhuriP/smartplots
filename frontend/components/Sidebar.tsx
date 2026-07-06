@@ -18,7 +18,7 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="h-screen w-64 shrink-0 border-r border-[#E7D3CC] bg-[#F8F3ED] p-6">
+    <aside className="h-screen w-64 shrink-0 overflow-y-auto border-r border-[#E7D3CC] bg-[#F8F3ED] p-6">
       <div className="mb-8">
         <h1 className="tracking-tight text-2xl font-bold text-slate-900">
           SmartPlots
